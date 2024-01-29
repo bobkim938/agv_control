@@ -39,6 +39,7 @@ void loop() {
   Serial.println("Type 1 if you want to move the robot forward");
   int input = Serial.parseInt();
   if (input == 1) {
+    Serial.println("Moving the robot forward");
     digitalWrite(DE, RS485Transmit);
     for (int i = 0; i < 11; i++) {
       byte sendByte = key2[i];
