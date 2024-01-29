@@ -3,11 +3,11 @@
 
 #define RX		6 // RS485 Receive pin
 #define TX		7 // RS485 Transmit pin
+#define DE    8 // RS485 direction control pin
 
+// RS485 direction control flags
 #define RS485Transmit HIGH
 #define RS485Receive LOW
-
-#define baudRate		115200
 
 SoftwareSerial RS485(RX, TX);
 
@@ -26,15 +26,30 @@ byte key10[11] = {0x01, 0x06, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0xBA, 0x
 
 void setup() {
   Serial.begin(9600);
+  pinMode(DE, OUTPUT); 
+  digitalWrite(DE, RS485Receive);
+  RS485.begin(115200);
 }
 
 void loop() {
-  int sensor_val = analogRead(analogPin); // 0 - 1023
-  Serial.println(sensor_val);
-  delay(100);
-  
-  // for (int i = 0; i < 11; i++) {
-  //   RS485.write(key1[i]);
-  // }
+  // int sensor_val = analogRead(analogPin); // 0 - 1023
+  // Serial.println(sensor_val);
+  // delay(100);
+
+  Serial.println("Type 1 if you want to move the robot forward");
+  int input = Serial.parseInt();
+  if (input == 1) {
+    digitalWrite(DE, RS485Transmit);
+    for (int i = 0; i < 11; i++) {
+      byte sendByte = key2[i];
+      RS485.write(sendByte);
+    }
+    digitalWrite(DE, RS485Receive);
+  }
+
+  if (RS485.available()) {
+    byte readByte = RS485.read();
+    Serial.println(readByte);
+  }
 
 }
