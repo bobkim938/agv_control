@@ -27,7 +27,7 @@ void setup() {
   Serial.begin(9600);
   pinMode(DE, OUTPUT); 
   digitalWrite(DE, RS485Transmit);
-  RS485.begin(115200);
+  RS485.begin(9600);
 }
 
 void loop() {
