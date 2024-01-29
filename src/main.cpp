@@ -42,8 +42,10 @@ void loop() {
     Serial.println("Moving the robot forward");
     digitalWrite(DE, RS485Transmit);
     for (int i = 0; i < 11; i++) {
-      byte sendByte = key2[i];
-      RS485.write(sendByte);
+      Serial.print("Sending: ");
+      Serial.println(key2[i]);
+      RS485.write(key2[i]);
+      delay(1);
     }
     digitalWrite(DE, RS485Receive);
   }
