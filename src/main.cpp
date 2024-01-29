@@ -1,5 +1,15 @@
 #include <Arduino.h>
-#include <ArduinoRS485.h>
+#include <SoftwareSerial.h>
+
+#define RX		6 // RS485 Receive pin
+#define TX		7 // RS485 Transmit pin
+
+#define RS485Transmit HIGH
+#define RS485Receive LOW
+
+#define baudRate		115200
+
+SoftwareSerial RS485(RX, TX);
 
 int analogPin = A3;
 
@@ -16,16 +26,15 @@ byte key10[11] = {0x01, 0x06, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0xBA, 0x
 
 void setup() {
   Serial.begin(9600);
-  RS485.begin(115200);
 }
 
 void loop() {
   int sensor_val = analogRead(analogPin); // 0 - 1023
   Serial.println(sensor_val);
   delay(100);
-  RS485.beginTransmission();
-  for (int i = 0; i < 11; i++) {
-    RS485.write(key1[i]);
-  }
+  
+  // for (int i = 0; i < 11; i++) {
+  //   RS485.write(key1[i]);
+  // }
 
 }
