@@ -7,7 +7,7 @@ const uint8_t deviceID = 0;
 RS485 rs485(&Serial1, sendPin);  //uses default deviceID
 
 uint32_t lastCommand = 0; 
-uint8_t commandState, group = 20;
+uint8_t commandState, group = 5;
 
 byte idle[11]   = {0x01, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x87, 0x4A}; 
 byte fwd[11]    = {0x01, 0x06, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x97, 0x8A};
@@ -19,9 +19,16 @@ byte fast[11]   = {0x01, 0x06, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xA6, 0
 byte left[11]   = {0x01, 0x06, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x76, 0x8A};
 byte right[11]  = {0x01, 0x06, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0xFE, 0x8A};
 
+void callbackCommand();
 void setIdle(int incomingByte);
 void setFwd(int incomingByte);
 void setBkwd(int incomingByte);
+void setCCW(int incomingByte);
+void setCW(int incomingByte);
+void setSlower(int incomingByte);
+void setFaster(int incomingByte);
+void setLeft(int incomingByte);
+void setRight(int incomingByte);
 
 void setup() {
   Serial.begin(115200);
@@ -109,4 +116,34 @@ void setFwd(int incomingByte) { // W: 87, w:119
 void setBkwd(int incomingByte) { // S: 83, s: 115
   if ((incomingByte != 83) and (incomingByte != 115)) return;
   commandState = 2;
+}
+
+void setCCW(int incomingByte) { // A: 65, a: 97
+  if ((incomingByte != 65) and (incomingByte != 97)) return;
+  commandState = 3;
+}
+
+void setCW(int incomingByte) { // D: 68, d: 100
+  if ((incomingByte != 68) and (incomingByte != 100)) return;
+  commandState = 4;
+}
+
+void setSlower(int incomingByte) { // -: 45
+  if (incomingByte != 45) return;
+  commandState = 5;
+}
+
+void setFaster(int incomingByte) { // +: 43
+  if (incomingByte != 43) return;
+  commandState = 6;
+}
+
+void setLeft(int incomingByte) { // <: 60
+  if (incomingByte != 60) return;
+  commandState = 7;
+}
+
+void setRight(int incomingByte) { // >: 62
+  if (incomingByte != 62) return;
+  commandState = 8;
 }
