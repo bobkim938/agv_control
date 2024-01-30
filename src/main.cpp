@@ -50,6 +50,12 @@ void loop() {
   setIdle(incomingByte);  // " " (space)
   setFwd(incomingByte);  // "W" or "w"
   setBkwd(incomingByte);  // "S" or "s"
+  setCCW(incomingByte);  // "Q" or "q"
+  setCW(incomingByte);  // "E" or "e"
+  setSlower(incomingByte);  // "-" (minus)
+  setFaster(incomingByte);  // "+" (plus)
+  setLeft(incomingByte);  // "A" or "a"
+  setRight(incomingByte);  // "D" or "d"
 
 }
 
@@ -124,8 +130,8 @@ void setCCW(int incomingByte) { // Q: 81, q: 113
   commandState = 3;
 }
 
-void setCW(int incomingByte) { // R: 82, r: 114
-  if ((incomingByte != 82) && (incomingByte != 114)) return;
+void setCW(int incomingByte) { // E: 69, e: 101
+  if ((incomingByte != 69) && (incomingByte != 101)) return;
   commandState = 4;
 }
 
