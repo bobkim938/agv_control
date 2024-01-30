@@ -30,6 +30,7 @@ void setFaster(int incomingByte);
 void setLeft(int incomingByte);
 void setRight(int incomingByte);
 
+
 void setup() {
   Serial.begin(115200);
   Serial1.begin(9600);
@@ -109,22 +110,22 @@ void setIdle(int incomingByte) { // " ": 32 (space)
 }
 
 void setFwd(int incomingByte) { // W: 87, w:119
-  if ((incomingByte != 87) and (incomingByte != 119)) return;
+  if ((incomingByte != 87) && (incomingByte != 119)) return;
   commandState = 1;
 }
 
 void setBkwd(int incomingByte) { // S: 83, s: 115
-  if ((incomingByte != 83) and (incomingByte != 115)) return;
+  if ((incomingByte != 83) && (incomingByte != 115)) return;
   commandState = 2;
 }
 
-void setCCW(int incomingByte) { // A: 65, a: 97
-  if ((incomingByte != 65) and (incomingByte != 97)) return;
+void setCCW(int incomingByte) { // Q: 81, q: 113
+  if ((incomingByte != 81) && (incomingByte != 113)) return;
   commandState = 3;
 }
 
-void setCW(int incomingByte) { // D: 68, d: 100
-  if ((incomingByte != 68) and (incomingByte != 100)) return;
+void setCW(int incomingByte) { // R: 82, r: 114
+  if ((incomingByte != 82) && (incomingByte != 114)) return;
   commandState = 4;
 }
 
@@ -138,12 +139,13 @@ void setFaster(int incomingByte) { // +: 43
   commandState = 6;
 }
 
-void setLeft(int incomingByte) { // <: 60
-  if (incomingByte != 60) return;
+void setLeft(int incomingByte) { // A: 65, a: 97
+  if ((incomingByte != 65) && (incomingByte != 97)) return;
   commandState = 7;
 }
 
-void setRight(int incomingByte) { // >: 62
-  if (incomingByte != 62) return;
+void setRight(int incomingByte) { // D: 68, d: 100
+  if ((incomingByte != 68) && (incomingByte != 100)) return;
   commandState = 8;
 }
+
