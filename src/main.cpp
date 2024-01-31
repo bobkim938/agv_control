@@ -36,9 +36,6 @@ void setup() {
   Serial1.begin(9600);
   while (!Serial);
   Serial.println();
-  //Serial.println(__FILE__);
-  //Serial.print("RS485_LIB_VERSION: ");
-  //Serial.println(RS485_LIB_VERSION);
   Timer1.initialize(50000); //50 millseconds
   Timer1.attachInterrupt(callbackCommand);
 }
