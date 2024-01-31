@@ -2,6 +2,9 @@
 #include <RS485.h>
 #include <TimerOne.h>
 
+#define sonic_0 A0
+#define sonic_1 A1
+
 const uint8_t sendPin  = 8;
 const uint8_t deviceID = 0;
 RS485 rs485(&Serial1, sendPin);  //uses default deviceID
@@ -42,6 +45,11 @@ void setup() {
 
 
 void loop() {
+  int sensor_0 = analogRead(sonic_0);
+  Serial.println(sensor_0);
+  int sensor_1 = analogRead(sonic_1);
+  Serial.println(sensor_1);
+
   if (Serial.available() <= 0) return;
   int incomingByte = Serial.read();
   setIdle(incomingByte);  // " " (space)
@@ -53,7 +61,6 @@ void loop() {
   setFaster(incomingByte);  // "+" (plus)
   setLeft(incomingByte);  // "A" or "a"
   setRight(incomingByte);  // "D" or "d"
-
 }
 
 void callbackCommand() {
