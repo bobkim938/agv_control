@@ -22,6 +22,7 @@ byte fast[11]   = {0x01, 0x06, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xA6, 0
 byte left[11]   = {0x01, 0x06, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x76, 0x8A};
 byte right[11]  = {0x01, 0x06, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0xFE, 0x8A};
 
+
 void callbackCommand();
 void setIdle(int incomingByte);
 void setFwd(int incomingByte);
@@ -47,8 +48,9 @@ void setup() {
 void loop() {
   int sensor_0 = analogRead(sonic_0);
   Serial.println(sensor_0);
-  int sensor_1 = analogRead(sonic_1);
-  Serial.println(sensor_1);
+  //int sensor_1 = analogRead(sonic_1);
+  //Serial.println(sensor_1);
+  delay(50);
 
   if (Serial.available() <= 0) return;
   int incomingByte = Serial.read();
@@ -62,6 +64,7 @@ void loop() {
   setLeft(incomingByte);  // "A" or "a"
   setRight(incomingByte);  // "D" or "d"
 }
+
 
 void callbackCommand() {
   switch (commandState) {
