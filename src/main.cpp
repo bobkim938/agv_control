@@ -24,6 +24,7 @@ byte right[11]  = {0x01, 0x06, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0xFE, 0
 
 
 void callbackCommand();
+void setCommand(int incomingByte);
 void setIdle(int incomingByte);
 void setFwd(int incomingByte);
 void setBkwd(int incomingByte);
@@ -48,13 +49,15 @@ void setup() {
 void loop() {
   int sensor_0 = analogRead(sonic_0);
   Serial.println(sensor_0);
-  //int sensor_1 = analogRead(sonic_1);
-  //Serial.println(sensor_1);
+  int sensor_1 = analogRead(sonic_1);
+  Serial.println(sensor_1);
   delay(50);
+  Serial.println("                ");
 
   if (Serial.available() <= 0) return;
   int incomingByte = Serial.read();
-  setIdle(incomingByte);  // " " (space)
+  setCommand(incomingByte);
+  /* setIdle(incomingByte);  // " " (space)
   setFwd(incomingByte);  // "W" or "w"
   setBkwd(incomingByte);  // "S" or "s"
   setCCW(incomingByte);  // "Q" or "q"
@@ -63,6 +66,7 @@ void loop() {
   setFaster(incomingByte);  // "+" (plus)
   setLeft(incomingByte);  // "A" or "a"
   setRight(incomingByte);  // "D" or "d"
+  */
 }
 
 
@@ -115,6 +119,28 @@ void callbackCommand() {
       break;
   }
   commandState = 0;
+}
+
+void setCommand(int incomingByte) {
+  if (incomingByte == 32) { // " ": 32 (space)
+    commandState = 0;
+  } else if ((incomingByte == 87) || (incomingByte == 119)) { // W: 87, w:119
+    commandState = 1;
+  } else if ((incomingByte == 83) || (incomingByte == 115)) { // S: 83, s: 115
+    commandState = 2;
+  } else if ((incomingByte == 81) || (incomingByte == 113)) { // Q: 81, q: 113
+    commandState = 3;
+  } else if ((incomingByte == 69) || (incomingByte == 101)) { // E: 69, e: 101
+    commandState = 4;
+  } else if (incomingByte == 45) { // -: 45
+    commandState = 5;
+  } else if (incomingByte == 43) { // +: 43
+    commandState = 6;
+  } else if ((incomingByte == 65) || (incomingByte == 97)) { // A: 65, a: 97
+    commandState = 7;
+  } else if ((incomingByte == 68) || (incomingByte == 100)) { // D: 68, d: 100
+    commandState = 8;
+  }
 }
 
 void setIdle(int incomingByte) { // " ": 32 (space)
