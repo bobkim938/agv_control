@@ -1,6 +1,6 @@
-#include <Arduino.h>
 #include <RS485.h>
 #include <TimerOne.h>
+#include <Arduino.h>
 
 #define sonic_0 A0
 #define sonic_1 A1
@@ -11,6 +11,9 @@ RS485 rs485(&Serial1, sendPin);  //uses default deviceID
 
 uint32_t lastCommand = 0; 
 uint8_t commandState, group = 5;
+
+int sensor_0;
+int sensor_1;
 
 byte idle[11]   = {0x01, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x87, 0x4A}; 
 byte fwd[11]    = {0x01, 0x06, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x97, 0x8A};
@@ -47,17 +50,16 @@ void setup() {
 
 
 void loop() {
-  int sensor_0 = analogRead(sonic_0);
+  sensor_0 = analogRead(sonic_0);
+  sensor_1 = analogRead(sonic_1);
   Serial.println(sensor_0);
-  int sensor_1 = analogRead(sonic_1);
   Serial.println(sensor_1);
+  Serial.println("     ");
   delay(50);
-  Serial.println("                ");
-
+  
   if (Serial.available() <= 0) return;
   int incomingByte = Serial.read();
-  setCommand(incomingByte);
-  /* setIdle(incomingByte);  // " " (space)
+  setIdle(incomingByte);  // " " (space)
   setFwd(incomingByte);  // "W" or "w"
   setBkwd(incomingByte);  // "S" or "s"
   setCCW(incomingByte);  // "Q" or "q"
@@ -66,7 +68,7 @@ void loop() {
   setFaster(incomingByte);  // "+" (plus)
   setLeft(incomingByte);  // "A" or "a"
   setRight(incomingByte);  // "D" or "d"
-  */
+
 }
 
 
@@ -119,28 +121,6 @@ void callbackCommand() {
       break;
   }
   commandState = 0;
-}
-
-void setCommand(int incomingByte) {
-  if (incomingByte == 32) { // " ": 32 (space)
-    commandState = 0;
-  } else if ((incomingByte == 87) || (incomingByte == 119)) { // W: 87, w:119
-    commandState = 1;
-  } else if ((incomingByte == 83) || (incomingByte == 115)) { // S: 83, s: 115
-    commandState = 2;
-  } else if ((incomingByte == 81) || (incomingByte == 113)) { // Q: 81, q: 113
-    commandState = 3;
-  } else if ((incomingByte == 69) || (incomingByte == 101)) { // E: 69, e: 101
-    commandState = 4;
-  } else if (incomingByte == 45) { // -: 45
-    commandState = 5;
-  } else if (incomingByte == 43) { // +: 43
-    commandState = 6;
-  } else if ((incomingByte == 65) || (incomingByte == 97)) { // A: 65, a: 97
-    commandState = 7;
-  } else if ((incomingByte == 68) || (incomingByte == 100)) { // D: 68, d: 100
-    commandState = 8;
-  }
 }
 
 void setIdle(int incomingByte) { // " ": 32 (space)
