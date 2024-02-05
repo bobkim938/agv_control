@@ -11,6 +11,7 @@ RS485 rs485(&Serial1, sendPin);  //uses default deviceID
 
 uint32_t lastCommand = 0; 
 uint8_t commandState, group = 5;
+bool align_flg = false;
 
 int sensor_0;
 int sensor_1;
@@ -37,6 +38,7 @@ void setSlower(int incomingByte);
 void setFaster(int incomingByte);
 void setLeft(int incomingByte);
 void setRight(int incomingByte);
+void align();
 
 
 void setup() {
@@ -56,7 +58,7 @@ void loop() {
   Serial.println(sensor_1);
   Serial.println("     ");
   delay(50);
-  
+
   if (Serial.available() <= 0) return;
   int incomingByte = Serial.read();
   setIdle(incomingByte);  // " " (space)
@@ -68,7 +70,7 @@ void loop() {
   setFaster(incomingByte);  // "+" (plus)
   setLeft(incomingByte);  // "A" or "a"
   setRight(incomingByte);  // "D" or "d"
-
+  align(align_flg); 
 }
 
 
@@ -166,5 +168,18 @@ void setLeft(int incomingByte) { // A: 65, a: 97
 void setRight(int incomingByte) { // D: 68, d: 100
   if ((incomingByte != 68) && (incomingByte != 100)) return;
   commandState = 8;
+}
+
+void align(bool flg) {
+  if(flg) {
+    while(sensor_0 != sensor_1) {
+      if(sensor_0 > sensor_1) {
+        for (int i = 0; i < 11; i++) rs485.write(ccw[i]);
+      }
+      else if (sensor_0 < sensor_1) {
+        for (int i = 0; i < 11; i++) rs485.write(cw[i]);
+      }
+    }
+  }
 }
 
