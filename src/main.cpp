@@ -29,6 +29,7 @@ byte right[11]  = {0x01, 0x06, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0xFE, 0
 
 void callbackCommand();
 void setCommand(int incomingByte);
+void align();
 
 void setup() {
   Serial.begin(115200);
@@ -48,8 +49,9 @@ void loop() {
   Serial.println("     ");
 
   if (Serial.available() <= 0) return;
-  int incomingByte = Serial.read();
-  set_command(incomingByte);
+  int incomingByte = Serial.read(); // 'M' or 'm' for alignmnent
+  if (incomingByte == 77 || incomingByte == 109) align_flg = true;
+  else set_command(incomingByte); 
 }
 
 
@@ -126,4 +128,17 @@ void set_command(int incomingByte) {
   }
 }
 
+void align() {
+  if(abs(sensor_0 - sensor_1) > 5) {
+    commandState = 0;
+    if (sensor_0 > sensor_1) {
+      commandState = 3;
+    } else if (sensor_0 < sensor_1) {
+      commandState = 4;
+    } 
+  } else {
+    commandState = 0;
+  }
+  align_flg = false;
+}
 
