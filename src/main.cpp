@@ -52,6 +52,7 @@ void loop() {
   int incomingByte = Serial.read(); // 'M' or 'm' for alignmnent
   if (incomingByte == 77 || incomingByte == 109) align_flg = true;
   else set_command(incomingByte); 
+  align();
 }
 
 
@@ -64,81 +65,98 @@ void callbackCommand() {
       for (int j = 0; j < group; j++) {
         for (int i = 0; i < 11; i++) rs485.write(fwd[i]);
       }
+      commandState = 0;
       break;
     case 2: // bkwd
       for (int j = 0; j < group; j++) {
         for (int i = 0; i < 11; i++) rs485.write(bkwd[i]);
       }
+      commandState = 0;
       break;
     case 3: // ccw
       for (int j = 0; j < group; j++) {
         for (int i = 0; i < 11; i++) rs485.write(ccw[i]);
       }
+      commandState = 0;
       break;
     case 4: // cw
       for (int j = 0; j < group; j++) {
         for (int i = 0; i < 11; i++) rs485.write(cw[i]);
       }
+      commandState = 0;
       break;
     case 5: // slower
       for (int j = 0; j < group; j++) {
         for (int i = 0; i < 11; i++) rs485.write(slow[i]);
       }
+      commandState = 0;
       break;
     case 6: // faster
       for (int j = 0; j < group; j++) {
         for (int i = 0; i < 11; i++) rs485.write(fast[i]);
       }
+      commandState = 0;
       break;
     case 7: // left
       for (int j = 0; j < group; j++) {
         for (int i = 0; i < 11; i++) rs485.write(left[i]);
       }
+      commandState = 0;
       break;
     case 8: // right
       for (int j = 0; j < group; j++) {
         for (int i = 0; i < 11; i++) rs485.write(right[i]);
       }
+      commandState = 0;
       break;  
+    case 9:
+      for (int j = 0; j < group; j++) {
+        for (int i = 0; i < 11; i++) rs485.write(ccw[i]);
+      }
+      break;
+    case 10:
+      for (int j = 0; j < group; j++) {
+        for (int i = 0; i < 11; i++) rs485.write(cw[i]);
+      }
+      break;
     default:
       break;
   }
-  commandState = 0;
 }
 
 void set_command(int incomingByte) {
-  if (incomingByte == 32) {
+  if (incomingByte == 32) { // space
     commandState = 0;
-  } else if ((incomingByte == 87) || (incomingByte == 119)) {
+  } else if ((incomingByte == 87) || (incomingByte == 119)) { // W or w
     commandState = 1;
-  } else if ((incomingByte == 83) || (incomingByte == 115)) {
+  } else if ((incomingByte == 83) || (incomingByte == 115)) { // S or s
     commandState = 2;
-  } else if ((incomingByte == 81) || (incomingByte == 113)) {
+  } else if ((incomingByte == 81) || (incomingByte == 113)) { // Q or q
     commandState = 3;
-  } else if ((incomingByte == 69) || (incomingByte == 101)) {
+  } else if ((incomingByte == 69) || (incomingByte == 101)) { // E or e
     commandState = 4;
-  } else if (incomingByte == 45) {
+  } else if (incomingByte == 45) { // -
     commandState = 5;
-  } else if (incomingByte == 43) {
+  } else if (incomingByte == 43) { // +
     commandState = 6;
-  } else if ((incomingByte == 65) || (incomingByte == 97)) {
+  } else if ((incomingByte == 65) || (incomingByte == 97)) { // A or a
     commandState = 7;
-  } else if ((incomingByte == 68) || (incomingByte == 100)) {
+  } else if ((incomingByte == 68) || (incomingByte == 100)) { // D or d
     commandState = 8;
   }
 }
 
 void align() {
-  if(abs(sensor_0 - sensor_1) > 5) {
+  if(abs(sensor_0 - sensor_1) > 5 && align_flg == true) {
     commandState = 0;
     if (sensor_0 > sensor_1) {
-      commandState = 3;
+      commandState = 9;
     } else if (sensor_0 < sensor_1) {
-      commandState = 4;
+      commandState = 10;
     } 
   } else {
     commandState = 0;
+    align_flg = false;
   }
-  align_flg = false;
 }
 
