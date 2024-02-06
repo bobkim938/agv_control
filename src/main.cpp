@@ -1,5 +1,6 @@
 #include <RS485.h>
 #include <TimerOne.h>
+#include <TimerThree.h>
 #include <Arduino.h>
 
 #define sonic_0 A0
@@ -11,10 +12,9 @@ RS485 rs485(&Serial1, sendPin);  //uses default deviceID
 
 uint32_t lastCommand = 0; 
 uint8_t commandState, group = 5;
-bool align_flg = false;
 
-int sensor_0;
-int sensor_1;
+int sensor_0; // right
+int sensor_1; // left
 
 byte idle[11]   = {0x01, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x87, 0x4A}; 
 byte fwd[11]    = {0x01, 0x06, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x97, 0x8A};
@@ -29,7 +29,6 @@ byte right[11]  = {0x01, 0x06, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0xFE, 0
 
 void callbackCommand();
 void setCommand(int incomingByte);
-void align();
 
 void setup() {
   Serial.begin(115200);
@@ -44,9 +43,7 @@ void setup() {
 void loop() {
   if (Serial.available() <= 0) return;
   int incomingByte = Serial.read(); // 'M' or 'm' for alignmnent
-  if (incomingByte == 77 || incomingByte == 109) align_flg = true;
-  else set_command(incomingByte); 
-  if (align_flg) align();
+  set_command(incomingByte); 
 }
 
 
@@ -103,15 +100,6 @@ void callbackCommand() {
       }
       commandState = 0;
       break;  
-    case 9:
-      for (int j = 0; j < group; j++) {
-        for (int i = 0; i < 11; i++) rs485.write(ccw[i]);
-      }
-      break;
-    case 10:
-      for (int j = 0; j < group; j++) {
-        for (int i = 0; i < 11; i++) rs485.write(cw[i]);
-      }
       break;
     default:
       break;
@@ -137,24 +125,6 @@ void set_command(int incomingByte) {
     commandState = 7;
   } else if ((incomingByte == 68) || (incomingByte == 100)) { // D or d
     commandState = 8;
-  }
-}
-
-void align() {
-  sensor_0 = analogRead(sonic_0); // right
-  sensor_1 = analogRead(sonic_1); // left 
-  Serial.println(sensor_0);
-  Serial.println(sensor_1);
-  Serial.println("     ");
-  if(abs(sensor_0 - sensor_1) > 5 && align_flg == true) {
-    if (sensor_0 > sensor_1) {
-      commandState = 9;
-    } else if (sensor_0 < sensor_1) {
-      commandState = 10;
-    } 
-  } else {
-    commandState = 0;
-    align_flg = false;
   }
 }
 
