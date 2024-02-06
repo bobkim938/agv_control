@@ -52,7 +52,7 @@ void loop() {
   int incomingByte = Serial.read(); // 'M' or 'm' for alignmnent
   if (incomingByte == 77 || incomingByte == 109) align_flg = true;
   else set_command(incomingByte); 
-  align();
+  if (align_flg) align();
 }
 
 
@@ -155,8 +155,10 @@ void align() {
       commandState = 10;
     } 
   } else {
+    Timer1.detachInterrupt();
     commandState = 0;
     align_flg = false;
+    Timer1.attachInterrupt(callbackCommand);
   }
 }
 
