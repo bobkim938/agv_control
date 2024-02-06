@@ -52,55 +52,63 @@ void callbackCommand() {
     case 0: // idle
       for (int i = 0; i < 11; i++) rs485.write(idle[i]);
       break;
+
     case 1: // fwd
       for (int j = 0; j < group; j++) {
         for (int i = 0; i < 11; i++) rs485.write(fwd[i]);
       }
       commandState = 0;
       break;
+
     case 2: // bkwd
       for (int j = 0; j < group; j++) {
         for (int i = 0; i < 11; i++) rs485.write(bkwd[i]);
       }
       commandState = 0;
       break;
+
     case 3: // ccw
       for (int j = 0; j < group; j++) {
         for (int i = 0; i < 11; i++) rs485.write(ccw[i]);
       }
       commandState = 0;
       break;
+
     case 4: // cw
       for (int j = 0; j < group; j++) {
         for (int i = 0; i < 11; i++) rs485.write(cw[i]);
       }
       commandState = 0;
       break;
+
     case 5: // slower
       for (int j = 0; j < group; j++) {
         for (int i = 0; i < 11; i++) rs485.write(slow[i]);
       }
       commandState = 0;
       break;
+
     case 6: // faster
       for (int j = 0; j < group; j++) {
         for (int i = 0; i < 11; i++) rs485.write(fast[i]);
       }
       commandState = 0;
       break;
+
     case 7: // left
       for (int j = 0; j < group; j++) {
         for (int i = 0; i < 11; i++) rs485.write(left[i]);
       }
       commandState = 0;
       break;
+
     case 8: // right
       for (int j = 0; j < group; j++) {
         for (int i = 0; i < 11; i++) rs485.write(right[i]);
       }
       commandState = 0;
       break;  
-      break;
+
     default:
       break;
   }
