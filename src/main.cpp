@@ -42,12 +42,6 @@ void setup() {
 
 
 void loop() {
-  sensor_0 = analogRead(sonic_0); // right
-  sensor_1 = analogRead(sonic_1); // left 
-  Serial.println(sensor_0);
-  Serial.println(sensor_1);
-  Serial.println("     ");
-
   if (Serial.available() <= 0) return;
   int incomingByte = Serial.read(); // 'M' or 'm' for alignmnent
   if (incomingByte == 77 || incomingByte == 109) align_flg = true;
@@ -147,18 +141,20 @@ void set_command(int incomingByte) {
 }
 
 void align() {
+  sensor_0 = analogRead(sonic_0); // right
+  sensor_1 = analogRead(sonic_1); // left 
+  Serial.println(sensor_0);
+  Serial.println(sensor_1);
+  Serial.println("     ");
   if(abs(sensor_0 - sensor_1) > 5 && align_flg == true) {
-    commandState = 0;
     if (sensor_0 > sensor_1) {
       commandState = 9;
     } else if (sensor_0 < sensor_1) {
       commandState = 10;
     } 
   } else {
-    Timer1.detachInterrupt();
     commandState = 0;
     align_flg = false;
-    Timer1.attachInterrupt(callbackCommand);
   }
 }
 
