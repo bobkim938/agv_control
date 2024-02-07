@@ -13,6 +13,8 @@ RS485 rs485(&Serial1, sendPin);  //uses default deviceID
 uint32_t lastCommand = 0; 
 uint8_t commandState, group = 5;
 
+bool alg = false;
+
 int sensor_0; // right
 int sensor_1; // left
 
@@ -43,74 +45,100 @@ void setup() {
 void loop() {
   if (Serial.available() <= 0) return;
   int incomingByte = Serial.read(); // 'M' or 'm' for alignmnent
-  set_command(incomingByte); 
+  if (incomingByte == 77 || incomingByte == 109) {
+    alg = true;
+  }
+  else set_command(incomingByte); 
 }
 
 
 void callbackCommand() {
-  switch (commandState) {
-    case 0: // idle
-      for (int i = 0; i < 11; i++) rs485.write(idle[i]);
-      break;
-
-    case 1: // fwd
-      for (int j = 0; j < group; j++) {
-        for (int i = 0; i < 11; i++) rs485.write(fwd[i]);
+  if (alg) {
+    sensor_0 = analogRead(sonic_0);
+    sensor_1 = analogRead(sonic_1);
+    if (abs(sensor_0 - sensor_1) > 5) {
+      if (sensor_0 > sensor_1) {
+          for (int j = 0; j < group; j++) {
+            for (int i = 0; i < 11; i++) rs485.write(ccw[i]);
+        }
+        for (int i = 0; i < 11; i++) rs485.write(idle[i]);
       }
-      commandState = 0;
-      break;
-
-    case 2: // bkwd
-      for (int j = 0; j < group; j++) {
-        for (int i = 0; i < 11; i++) rs485.write(bkwd[i]);
+      else if (sensor_0 < sensor_1) {
+        for (int j = 0; j < group; j++) {
+          for (int i = 0; i < 11; i++) rs485.write(cw[i]);
+        }
+        for (int i = 0; i < 11; i++) rs485.write(idle[i]);
       }
-      commandState = 0;
-      break;
+    }
+    else {
+      alg = false;
+    }
+  }
+  else {
+    switch (commandState) {
+      case 0: // idle
+        for (int i = 0; i < 11; i++) rs485.write(idle[i]);
+        break;
 
-    case 3: // ccw
-      for (int j = 0; j < group; j++) {
-        for (int i = 0; i < 11; i++) rs485.write(ccw[i]);
-      }
-      commandState = 0;
-      break;
+      case 1: // fwd
+        for (int j = 0; j < group; j++) {
+          for (int i = 0; i < 11; i++) rs485.write(fwd[i]);
+        }
+        commandState = 0;
+        break;
 
-    case 4: // cw
-      for (int j = 0; j < group; j++) {
-        for (int i = 0; i < 11; i++) rs485.write(cw[i]);
-      }
-      commandState = 0;
-      break;
+      case 2: // bkwd
+        for (int j = 0; j < group; j++) {
+          for (int i = 0; i < 11; i++) rs485.write(bkwd[i]);
+        }
+        commandState = 0;
+        break;
 
-    case 5: // slower
-      for (int j = 0; j < group; j++) {
-        for (int i = 0; i < 11; i++) rs485.write(slow[i]);
-      }
-      commandState = 0;
-      break;
+      case 3: // ccw
+        for (int j = 0; j < group; j++) {
+          for (int i = 0; i < 11; i++) rs485.write(ccw[i]);
+        }
+        commandState = 0;
+        break;
 
-    case 6: // faster
-      for (int j = 0; j < group; j++) {
-        for (int i = 0; i < 11; i++) rs485.write(fast[i]);
-      }
-      commandState = 0;
-      break;
+      case 4: // cw
+        for (int j = 0; j < group; j++) {
+          for (int i = 0; i < 11; i++) rs485.write(cw[i]);
+        }
+        commandState = 0;
+        break;
 
-    case 7: // left
-      for (int j = 0; j < group; j++) {
-        for (int i = 0; i < 11; i++) rs485.write(left[i]);
-      }
-      commandState = 0;
-      break;
+      case 5: // slower
+        for (int j = 0; j < group; j++) {
+          for (int i = 0; i < 11; i++) rs485.write(slow[i]);
+        }
+        commandState = 0;
+        break;
 
-    case 8: // right
-      for (int j = 0; j < group; j++) {
-        for (int i = 0; i < 11; i++) rs485.write(right[i]);
-      }
-      commandState = 0;
-      break;  
+      case 6: // faster
+        for (int j = 0; j < group; j++) {
+          for (int i = 0; i < 11; i++) rs485.write(fast[i]);
+        }
+        commandState = 0;
+        break;
 
-    default:
-      break;
+      case 7: // left
+        for (int j = 0; j < group; j++) {
+          for (int i = 0; i < 11; i++) rs485.write(left[i]);
+        }
+        commandState = 0;
+        break;
+
+      case 8: // right
+        for (int j = 0; j < group; j++) {
+          for (int i = 0; i < 11; i++) rs485.write(right[i]);
+        }
+        commandState = 0;
+        break;  
+
+      default:
+        break;
+    }
   }
 }
 
