@@ -1,13 +1,22 @@
 #include <RS485.h>
 #include <TimerOne.h>
 #include <Arduino.h>
+#include "PID_RT.h"
 
 #define sonic_0 A0
 #define sonic_1 A1
 
+PID_RT PID;
+
 const uint8_t sendPin  = 8;
 const uint8_t deviceID = 0;
 RS485 rs485(&Serial1, sendPin);  //uses default deviceID
+
+// NEED TO TUNE PID GAINS
+const uint8_t Kp = 5;
+const uint8_t Ki = 3;
+const uint8_t Kd = 2;
+int P, I, D, prev_e = 0;
 
 uint32_t lastCommand = 0; 
 uint8_t commandState, group = 2;
@@ -30,6 +39,7 @@ byte right[11]  = {0x01, 0x06, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0xFE, 0
 
 void callbackCommand();
 void setCommand(int incomingByte);
+int PID();
 
 void setup() {
   Serial.begin(115200);
@@ -42,8 +52,6 @@ void setup() {
 
 
 void loop() {
-  sensor_0 = analogRead(sonic_0);
-  sensor_1 = analogRead(sonic_1);
   if (Serial.available() <= 0) return;
   int incomingByte = Serial.read(); // 'M' or 'm' for alignmnent
   if (incomingByte == 77 || incomingByte == 109) {
@@ -54,8 +62,14 @@ void loop() {
 
 
 void callbackCommand() {
+  sensor_0 = analogRead(sonic_0);
+  sensor_1 = analogRead(sonic_1);
+  Serial.println(sensor_0);
+  Serial.println(sensor_1);
+  Serial.println("");
   if (alg) {
-    if (abs(sensor_0 - sensor_1) > 5) {
+    if (abs(sensor_0 - sensor_1) > 2) {
+      group = PID();
       if (sensor_0 > sensor_1) {
           for (int j = 0; j < group; j++) {
             for (int i = 0; i < 11; i++) rs485.write(ccw[i]);
@@ -161,4 +175,22 @@ void setCommand(int incomingByte) {
   } else if ((incomingByte == 68) || (incomingByte == 100)) { // D or d
     commandState = 8;
   }
+}
+
+int PID() {
+  sensor_0 = analogRead(sonic_0);
+  sensor_1 = analogRead(sonic_1);
+  int error = abs(sensor_0 - sensor_1);
+
+  P = Kp * error;
+  I += (Ki * error);
+  D = Kd * (error - prev_e);
+
+  prev_e = error;
+  int PID = P + I + D;
+  
+  // anti-windup
+  if (PID > 500) PID = 500;
+  else if (PID < 0) PID = abs(PID);
+  return PID/100;
 }
