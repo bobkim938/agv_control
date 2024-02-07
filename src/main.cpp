@@ -1,6 +1,5 @@
 #include <RS485.h>
 #include <TimerOne.h>
-#include <TimerThree.h>
 #include <Arduino.h>
 
 #define sonic_0 A0
@@ -50,7 +49,7 @@ void loop() {
   if (incomingByte == 77 || incomingByte == 109) {
     alg = true;
   }
-  else set_command(incomingByte); 
+  else setCommand(incomingByte);
 }
 
 
@@ -142,7 +141,7 @@ void callbackCommand() {
   }
 }
 
-void set_command(int incomingByte) {
+void setCommand(int incomingByte) {
   if (incomingByte == 32) { // space
     commandState = 0;
   } else if ((incomingByte == 87) || (incomingByte == 119)) { // W or w
@@ -163,4 +162,3 @@ void set_command(int incomingByte) {
     commandState = 8;
   }
 }
-
