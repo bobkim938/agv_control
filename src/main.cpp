@@ -11,10 +11,12 @@ const uint8_t deviceID = 0;
 RS485 rs485(&Serial1, sendPin);  //uses default deviceID
 
 // NEED TO TUNE PID GAINS
-const uint8_t Kp = 5;
-const uint8_t Ki = 3;
-const uint8_t Kd = 2;
+const uint8_t Kp = 13;
+const uint8_t Ki = 0;
+const uint8_t Kd = 5;
 int P, I, D, prev_e = 0;
+
+int cnt = 0;
 
 uint32_t lastCommand = 0; 
 uint8_t commandState, group = 2;
@@ -60,13 +62,14 @@ void loop() {
 
 
 void callbackCommand() {
+
   sensor_0 = analogRead(sonic_0);
   sensor_1 = analogRead(sonic_1);
   Serial.println(sensor_0);
   Serial.println(sensor_1);
   Serial.println("");
   if (alg) {
-    if (abs(sensor_0 - sensor_1) > 2) {
+    if (abs(sensor_0 - sensor_1) >= 5) {
       group = PID();
       if (sensor_0 > sensor_1) {
           for (int j = 0; j < group; j++) {
@@ -81,8 +84,14 @@ void callbackCommand() {
         for (int i = 0; i < 11; i++) rs485.write(idle[i]);
       }
     }
-    else {
+    else if(abs(sensor_0 - sensor_1) < 6) {
+        cnt++;
+      }
+    else if (cnt == 3 && (abs(sensor_0 - sensor_1) < 6)) {
+      Serial.println("adjusted");
       alg = false;
+      group = 2;
+      cnt = 0;
     }
   }
   else {
@@ -176,8 +185,6 @@ void setCommand(int incomingByte) {
 }
 
 int PID() {
-  sensor_0 = analogRead(sonic_0);
-  sensor_1 = analogRead(sonic_1);
   int error = abs(sensor_0 - sensor_1);
 
   P = Kp * error;
