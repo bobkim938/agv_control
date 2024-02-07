@@ -11,7 +11,7 @@ const uint8_t deviceID = 0;
 RS485 rs485(&Serial1, sendPin);  //uses default deviceID
 
 uint32_t lastCommand = 0; 
-uint8_t commandState, group = 5;
+uint8_t commandState, group = 2;
 
 bool alg = false;
 
@@ -43,6 +43,8 @@ void setup() {
 
 
 void loop() {
+  sensor_0 = analogRead(sonic_0);
+  sensor_1 = analogRead(sonic_1);
   if (Serial.available() <= 0) return;
   int incomingByte = Serial.read(); // 'M' or 'm' for alignmnent
   if (incomingByte == 77 || incomingByte == 109) {
@@ -54,8 +56,6 @@ void loop() {
 
 void callbackCommand() {
   if (alg) {
-    sensor_0 = analogRead(sonic_0);
-    sensor_1 = analogRead(sonic_1);
     if (abs(sensor_0 - sensor_1) > 5) {
       if (sensor_0 > sensor_1) {
           for (int j = 0; j < group; j++) {
