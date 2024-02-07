@@ -1,12 +1,10 @@
 #include <RS485.h>
 #include <TimerOne.h>
 #include <Arduino.h>
-#include "PID_RT.h"
 
 #define sonic_0 A0
 #define sonic_1 A1
 
-PID_RT PID;
 
 const uint8_t sendPin  = 8;
 const uint8_t deviceID = 0;
