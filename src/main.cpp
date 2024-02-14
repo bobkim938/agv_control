@@ -4,7 +4,7 @@
 
 #define sonic_0 A0
 #define sonic_1 A1
-
+#define tof A2
 
 const uint8_t sendPin  = 8;
 const uint8_t deviceID = 0;
@@ -15,6 +15,8 @@ const uint8_t Kp = 12;
 const uint8_t Ki = 0;
 const uint8_t Kd = 5;
 int P, I, D, prev_e = 0;
+float current_pos = 0;
+float desired_pos = 0;
 
 int cnt = 0;
 
@@ -22,9 +24,11 @@ uint32_t lastCommand = 0;
 uint8_t commandState, group = 2;
 
 bool alg = false;
+bool move = false;
 
 int sensor_0; // right
 int sensor_1; // left
+int sensor_2; // tof
 
 byte idle[11]   = {0x01, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x87, 0x4A}; 
 byte fwd[11]    = {0x01, 0x06, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x97, 0x8A};
@@ -50,12 +54,15 @@ void setup() {
   Timer1.attachInterrupt(callbackCommand);
 }
 
-
 void loop() {
   if (Serial.available() <= 0) return;
   int incomingByte = Serial.read(); // 'M' or 'm' for alignmnent
   if (incomingByte == 77 || incomingByte == 109) {
     alg = true;
+  }
+  else if (incomingByte == 62) {
+    move = true;
+    desired_pos = current_pos + 500;
   }
   else setCommand(incomingByte);
 }
@@ -64,9 +71,12 @@ void loop() {
 void callbackCommand() {
   sensor_0 = analogRead(sonic_0);
   sensor_1 = analogRead(sonic_1);
+  sensor_2 = analogRead(tof);
+  current_pos = sensor_2 * 2.4438 + 150;
   Serial.println(sensor_0);
   Serial.println(sensor_1);
   Serial.println("");
+
   if (alg && cnt<=20) {
     if (abs(sensor_0 - sensor_1) >= 6) {
       group = PID();
@@ -83,10 +93,27 @@ void callbackCommand() {
         for (int i = 0; i < 11; i++) rs485.write(idle[i]);
       }
     }
-    else {
+
+    else if (move) {
+      if (current_pos == desired_pos) move = false;
+      else if (current_pos > desired_pos) {
+        for (int j = 0; j < 2; j++) {
+          for (int i = 0; i < 11; i++) rs485.write(left[i]);
+        }
+      }
+      else if (current_pos < desired_pos) {
+        for (int j = 0; j < 2; j++) {
+          for (int i = 0; i < 11; i++) rs485.write(right[i]);
+        }
+      
+      }
+    }
+    
+    else if (abs(sensor_0 - sensor_1) <= 6) {
       ++cnt;
     }
   }
+
   else {
       cnt = 0;
       alg = false;
