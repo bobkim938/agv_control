@@ -5,7 +5,6 @@
 #define sonic_0 A0
 #define sonic_1 A1
 
-
 const uint8_t sendPin  = 8;
 const uint8_t deviceID = 0;
 RS485 rs485(&Serial1, sendPin);  //uses default deviceID
@@ -36,10 +35,10 @@ byte fast[11]   = {0x01, 0x06, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xA6, 0
 byte left[11]   = {0x01, 0x06, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x76, 0x8A};
 byte right[11]  = {0x01, 0x06, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0xFE, 0x8A};
 
-
 void callbackCommand();
 void setCommand(int incomingByte);
 int PID();
+
 
 void setup() {
   Serial.begin(115200);
@@ -62,12 +61,12 @@ void loop() {
 
 
 void callbackCommand() {
-
   sensor_0 = analogRead(sonic_0);
   sensor_1 = analogRead(sonic_1);
   Serial.println(sensor_0);
   Serial.println(sensor_1);
   Serial.println("");
+
   if (alg) {
     if (abs(sensor_0 - sensor_1) >= 5) {
       group = PID();
@@ -162,6 +161,7 @@ void callbackCommand() {
   }
 }
 
+
 void setCommand(int incomingByte) {
   if (incomingByte == 32) { // space
     commandState = 0;
@@ -184,12 +184,14 @@ void setCommand(int incomingByte) {
   }
 }
 
+
 int PID() {
   int error = abs(sensor_0 - sensor_1);
 
   P = Kp * error;
   I += (Ki * error);
-  D = Kd * (error - prev_e);
+  float dt = (error - prev_e) / 0.009;
+  D = Kd * dt;
 
   prev_e = error;
   int PID = P + I + D;
