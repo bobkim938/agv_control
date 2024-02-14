@@ -60,7 +60,7 @@ void loop() {
   if (incomingByte == 77 || incomingByte == 109) {
     alg = true;
   }
-  else if (incomingByte == 62) {
+  else if (incomingByte == 67 || incomingByte == 99) {
     move = true;
     desired_pos = current_pos + 500;
   }
@@ -93,26 +93,25 @@ void callbackCommand() {
         for (int i = 0; i < 11; i++) rs485.write(idle[i]);
       }
     }
+    else {
+      ++cnt;
+    }
+  }
 
-    else if (move) {
-      if (current_pos == desired_pos) move = false;
+  else if (move) {
+      if (abs(current_pos - desired_pos) <= 5) move = false;
       else if (current_pos > desired_pos) {
-        for (int j = 0; j < 2; j++) {
+        for (int j = 0; j < group; j++) {
           for (int i = 0; i < 11; i++) rs485.write(left[i]);
         }
       }
       else if (current_pos < desired_pos) {
-        for (int j = 0; j < 2; j++) {
+        for (int j = 0; j < group; j++) {
           for (int i = 0; i < 11; i++) rs485.write(right[i]);
         }
       
       }
     }
-    
-    else if (abs(sensor_0 - sensor_1) <= 6) {
-      ++cnt;
-    }
-  }
 
   else {
       cnt = 0;
