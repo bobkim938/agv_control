@@ -5,12 +5,13 @@
 #define sonic_0 A0
 #define sonic_1 A1
 
+
 const uint8_t sendPin  = 8;
 const uint8_t deviceID = 0;
 RS485 rs485(&Serial1, sendPin);  //uses default deviceID
 
 // NEED TO TUNE PID GAINS
-const uint8_t Kp = 13;
+const uint8_t Kp = 12;
 const uint8_t Ki = 0;
 const uint8_t Kd = 5;
 int P, I, D, prev_e = 0;
@@ -35,10 +36,10 @@ byte fast[11]   = {0x01, 0x06, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xA6, 0
 byte left[11]   = {0x01, 0x06, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x76, 0x8A};
 byte right[11]  = {0x01, 0x06, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0xFE, 0x8A};
 
+
 void callbackCommand();
 void setCommand(int incomingByte);
 int PID();
-
 
 void setup() {
   Serial.begin(115200);
@@ -66,9 +67,8 @@ void callbackCommand() {
   Serial.println(sensor_0);
   Serial.println(sensor_1);
   Serial.println("");
-
-  if (alg) {
-    if (abs(sensor_0 - sensor_1) >= 5) {
+  if (alg && cnt<=20) {
+    if (abs(sensor_0 - sensor_1) >= 6) {
       group = PID();
       if (sensor_0 > sensor_1) {
           for (int j = 0; j < group; j++) {
@@ -83,17 +83,14 @@ void callbackCommand() {
         for (int i = 0; i < 11; i++) rs485.write(idle[i]);
       }
     }
-    else if(abs(sensor_0 - sensor_1) < 6) {
-        cnt++;
-      }
-    else if (cnt == 3 && (abs(sensor_0 - sensor_1) < 6)) {
-      Serial.println("adjusted");
-      alg = false;
-      group = 2;
-      cnt = 0;
+    else {
+      ++cnt;
     }
   }
   else {
+      cnt = 0;
+      alg = false;
+      group = 2;
     switch (commandState) {
       case 0: // idle
         for (int i = 0; i < 11; i++) rs485.write(idle[i]);
@@ -161,7 +158,6 @@ void callbackCommand() {
   }
 }
 
-
 void setCommand(int incomingByte) {
   if (incomingByte == 32) { // space
     commandState = 0;
@@ -184,20 +180,18 @@ void setCommand(int incomingByte) {
   }
 }
 
-
 int PID() {
   int error = abs(sensor_0 - sensor_1);
 
   P = Kp * error;
   I += (Ki * error);
-  float dt = (error - prev_e) / 0.009;
-  D = Kd * dt;
+  D = Kd * (error - prev_e);
 
   prev_e = error;
   int PID = P + I + D;
   
   // anti-windup
-  if (PID > 500) PID = 500;
+  if (PID > 300) PID = 300;
   else if (PID < 0) PID = abs(PID);
   return PID/100;
 }
