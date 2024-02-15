@@ -17,7 +17,8 @@ const uint8_t Kd = 5;
 int P, I, D, prev_e = 0;
 float current_pos = 0;
 float desired_pos = 0;
-int vert_pos = 0;
+float start_pos = 0;
+int alg_x = 1;
 
 int cnt = 0;
 
@@ -25,8 +26,8 @@ uint32_t lastCommand = 0;
 uint8_t commandState, group = 2;
 
 bool alg = false;
-bool move_side = false;
-bool adj_fbw = false;
+bool move = false;
+bool alg_mv = false;
 
 int sensor_0; // right
 int sensor_1; // left
@@ -46,6 +47,8 @@ byte right[11]  = {0x01, 0x06, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0xFE, 0
 void callbackCommand();
 void setCommand(int incomingByte);
 int PID();
+void align();
+void move_sd();
 
 void setup() {
   Serial.begin(115200);
@@ -62,13 +65,14 @@ void loop() {
   if (incomingByte == 77 || incomingByte == 109) {
     alg = true;
   }
-  else if (incomingByte == 67 || incomingByte == 99) { // 'C' or 'c' for side move
-    move_side = true;
-    desired_pos = current_pos + 500;
+  else if (incomingByte == 67 || incomingByte == 99) {  // 'C' or 'c' for move
+    desired_pos = current_pos + 475;
+    move = true;
   }
-  else if (incomingByte == 86 || incomingByte == 118) // 'V' or 'v' for forward/backward adjustment
-  {
-    adj_fbw = true;
+  else if (incomingByte == 62) {  // '>'
+    start_pos = current_pos;
+    alg_mv = true;
+    desired_pos = current_pos + 475;
   }
   else setCommand(incomingByte);
 }
@@ -78,71 +82,16 @@ void callbackCommand() {
   sensor_0 = analogRead(sonic_0);
   sensor_1 = analogRead(sonic_1);
   sensor_2 = analogRead(tof);
-  current_pos = sensor_2 * 2.297 + 150;
-  vert_pos = (sensor_0 + sensor_1) * 0.5; // in ADC value
+  current_pos = sensor_2 * 2.4438 + 150;
   Serial.println(sensor_0);
   Serial.println(sensor_1);
+  Serial.println(sensor_2);
   Serial.println("");
 
-  // alignment
-  if (alg && cnt<=20) {
-    if (abs(sensor_0 - sensor_1) >= 6) {
-      group = PID();
-      if (sensor_0 > sensor_1) {
-          for (int j = 0; j < group; j++) {
-            for (int i = 0; i < 11; i++) rs485.write(ccw[i]);
-        }
-        for (int i = 0; i < 11; i++) rs485.write(idle[i]);
-      }
-      else if (sensor_0 < sensor_1) {
-        for (int j = 0; j < group; j++) {
-          for (int i = 0; i < 11; i++) rs485.write(cw[i]);
-        }
-        for (int i = 0; i < 11; i++) rs485.write(idle[i]);
-      }
-    }
-    else {
-      ++cnt;
-    }
-  }
+  if (alg && cnt<=20) align();
 
-  // side move 500 mm
-  else if (move_side) {
-      if (abs(current_pos - desired_pos) <= 5) move_side = false;
-      else if (current_pos > desired_pos) {
-        for (int j = 0; j < group; j++) {
-          for (int i = 0; i < 11; i++) rs485.write(left[i]);
-        }
-      }
-      else if (current_pos < desired_pos) {
-        for (int j = 0; j < group; j++) {
-          for (int i = 0; i < 11; i++) rs485.write(right[i]);
-        }
-      
-      }
-    }
+  else if (move) move_sd();
 
-else if (adj_fbw) {
-  if(abs(757 - vert_pos) > 5) {
-    group = 1;
-    if (vert_pos > 757) {
-      for (int j = 0; j < group; j++) {
-        for (int i = 0; i < 11; i++) rs485.write(fwd[i]);
-      }
-    }
-    else if (vert_pos < 757) {
-      for (int j = 0; j < group; j++) {
-        for (int i = 0; i < 11; i++) rs485.write(bkwd[i]);
-      }
-    }
-  }
-  else {
-    group = 2;
-    adj_fbw = false;
-  }
-}
-
-  // manual control
   else {
       cnt = 0;
       alg = false;
@@ -235,6 +184,42 @@ void setCommand(int incomingByte) {
     commandState = 8;
   }
 }
+
+void align() {
+  if (abs(sensor_0 - sensor_1) >= 6) {
+      group = PID();
+      if (sensor_0 > sensor_1) {
+          for (int j = 0; j < group; j++) {
+            for (int i = 0; i < 11; i++) rs485.write(ccw[i]);
+        }
+        for (int i = 0; i < 11; i++) rs485.write(idle[i]);
+      }
+      else if (sensor_0 < sensor_1) {
+        for (int j = 0; j < group; j++) {
+          for (int i = 0; i < 11; i++) rs485.write(cw[i]);
+        }
+        for (int i = 0; i < 11; i++) rs485.write(idle[i]);
+      }
+    }
+    else {
+      ++cnt;
+    }
+}
+
+void move_sd() {
+  if (abs(current_pos - desired_pos) <= 5) move = false;
+  else if (current_pos > desired_pos) {
+    for (int j = 0; j < group; j++) {
+      for (int i = 0; i < 11; i++) rs485.write(left[i]);
+    }
+  }
+  else if (current_pos < desired_pos) {
+    for (int j = 0; j < group; j++) {
+      for (int i = 0; i < 11; i++) rs485.write(right[i]);
+    }
+  }
+}
+
 
 int PID() {
   int error = abs(sensor_0 - sensor_1);
