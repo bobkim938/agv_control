@@ -17,6 +17,7 @@ const uint8_t Kd = 5;
 int P, I, D, prev_e = 0;
 float current_pos = 0;
 float desired_pos = 0;
+int vert_pos = 0;
 
 int cnt = 0;
 
@@ -24,7 +25,8 @@ uint32_t lastCommand = 0;
 uint8_t commandState, group = 2;
 
 bool alg = false;
-bool move = false;
+bool move_side = false;
+bool adj_fbw = false;
 
 int sensor_0; // right
 int sensor_1; // left
@@ -60,9 +62,13 @@ void loop() {
   if (incomingByte == 77 || incomingByte == 109) {
     alg = true;
   }
-  else if (incomingByte == 67 || incomingByte == 99) {
-    move = true;
+  else if (incomingByte == 67 || incomingByte == 99) { // 'C' or 'c' for side move
+    move_side = true;
     desired_pos = current_pos + 500;
+  }
+  else if (incomingByte == 86 || incomingByte == 118) // 'V' or 'v' for forward/backward adjustment
+  {
+    adj_fbw = true;
   }
   else setCommand(incomingByte);
 }
@@ -72,11 +78,13 @@ void callbackCommand() {
   sensor_0 = analogRead(sonic_0);
   sensor_1 = analogRead(sonic_1);
   sensor_2 = analogRead(tof);
-  current_pos = sensor_2 * 2.4438 + 150;
+  current_pos = sensor_2 * 2.297 + 150;
+  vert_pos = (sensor_0 + sensor_1) * 0.5; // in ADC value
   Serial.println(sensor_0);
   Serial.println(sensor_1);
   Serial.println("");
 
+  // alignment
   if (alg && cnt<=20) {
     if (abs(sensor_0 - sensor_1) >= 6) {
       group = PID();
@@ -98,8 +106,9 @@ void callbackCommand() {
     }
   }
 
-  else if (move) {
-      if (abs(current_pos - desired_pos) <= 5) move = false;
+  // side move 500 mm
+  else if (move_side) {
+      if (abs(current_pos - desired_pos) <= 5) move_side = false;
       else if (current_pos > desired_pos) {
         for (int j = 0; j < group; j++) {
           for (int i = 0; i < 11; i++) rs485.write(left[i]);
@@ -113,6 +122,27 @@ void callbackCommand() {
       }
     }
 
+else if (adj_fbw) {
+  if(abs(757 - vert_pos) > 5) {
+    group = 1;
+    if (vert_pos > 757) {
+      for (int j = 0; j < group; j++) {
+        for (int i = 0; i < 11; i++) rs485.write(fwd[i]);
+      }
+    }
+    else if (vert_pos < 757) {
+      for (int j = 0; j < group; j++) {
+        for (int i = 0; i < 11; i++) rs485.write(bkwd[i]);
+      }
+    }
+  }
+  else {
+    group = 2;
+    adj_fbw = false;
+  }
+}
+
+  // manual control
   else {
       cnt = 0;
       alg = false;
