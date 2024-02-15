@@ -43,7 +43,6 @@ byte fast[11]   = {0x01, 0x06, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xA6, 0
 byte left[11]   = {0x01, 0x06, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x76, 0x8A};
 byte right[11]  = {0x01, 0x06, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0xFE, 0x8A};
 
-
 void callbackCommand();
 void setCommand(int incomingByte);
 int PID();
@@ -77,7 +76,6 @@ void loop() {
   else setCommand(incomingByte);
 }
 
-
 void callbackCommand() {
   sensor_0 = analogRead(sonic_0);
   sensor_1 = analogRead(sonic_1);
@@ -91,6 +89,17 @@ void callbackCommand() {
   if (alg && cnt<=20) align();
 
   else if (move) move_sd();
+
+  else if (alg_mv) {
+    if(abs(current_pos - start_pos*alg_x) <= 5) {
+      if(abs(sensor_0 - sensor_1) >= 6 && cnt<=20) align();
+      else {
+        cnt = 0;
+        alg_x++;
+      }
+    }
+    else move_sd();
+  }
 
   else {
       cnt = 0;
@@ -207,7 +216,10 @@ void align() {
 }
 
 void move_sd() {
-  if (abs(current_pos - desired_pos) <= 5) move = false;
+  if (abs(current_pos - desired_pos) <= 5) {
+    move = false;
+    alg_mv = false;
+    }
   else if (current_pos > desired_pos) {
     for (int j = 0; j < group; j++) {
       for (int i = 0; i < 11; i++) rs485.write(left[i]);
@@ -219,7 +231,6 @@ void move_sd() {
     }
   }
 }
-
 
 int PID() {
   int error = abs(sensor_0 - sensor_1);
