@@ -10,7 +10,6 @@ const uint8_t sendPin  = 8;
 const uint8_t deviceID = 0;
 RS485 rs485(&Serial1, sendPin);  //uses default deviceID
 
-// NEED TO TUNE PID GAINS
 const uint8_t Kp = 12;
 const uint8_t Ki = 0;
 const uint8_t Kd = 5;
@@ -75,13 +74,10 @@ void callbackCommand() {
   Serial.println("");
 
   if (alg) align();
-
   else if (move) move_sd();
-
   else if (auto_m) {
     
   }
-
   else {
     manual();
   }
@@ -108,7 +104,7 @@ void setCommand(int incomingByte) {
     commandState = 8;
   } else if (incomingByte == 77 || incomingByte == 109) { // 'M' or 'm' for alignmnent
     alg = true;
-  } else if (incomingByte == 67 || incomingByte == 99) {  // 'C' or 'c' for move side
+  } else if (incomingByte == 67 || incomingByte == 99) {  // 'C' or 'c' for move side 500 mm
     desired_pos = current_pos + 475;
     move = true;
   } else if (incomingByte == 90 || incomingByte == 122) {  // 'Z' or 'z' for auto mode
@@ -133,15 +129,15 @@ void align() {
         for (int i = 0; i < 11; i++) rs485.write(idle[i]);
       }
     }
-    else {
-      ++cnt;
-    }
+  else {
+    ++cnt;
+  }
 
-    if (cnt >= 20 && abs(sensor_0 - sensor_1) <= 6) {
-      alg = false;
-      cnt = 0;
-      group = 2;
-    }
+  if (cnt >= 20 && abs(sensor_0 - sensor_1) <= 6) {
+    alg = false;
+    cnt = 0;
+    group = 2;
+  }
 }
 
 void move_sd() {
