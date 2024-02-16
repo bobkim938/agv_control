@@ -18,7 +18,8 @@ float current_pos = 0;
 float desired_pos = 0;
 float start_pos = 0;
 
-int cnt = 0;
+int cnt_alg = 0;
+int cnt_auto = 0;
 
 uint32_t lastCommand = 0; 
 uint8_t commandState, group = 2;
@@ -26,6 +27,8 @@ uint8_t commandState, group = 2;
 bool alg = false;
 bool move = false;
 bool auto_m = false;
+bool auto_seq = true;
+bool auto_mv = false;
 
 int sensor_0; // right
 int sensor_1; // left
@@ -76,7 +79,18 @@ void callbackCommand() {
   if (alg) align();
   else if (move) move_sd();
   else if (auto_m) {
-    
+    if(auto_seq) {
+      alg = true;
+      cnt_auto++;
+    }
+    else if(auto_mv) {
+      desired_pos = start_pos + 100 * cnt_auto;
+      move = true;
+    }
+    if(cnt_auto >= 5) {
+      auto_m = false;
+      cnt_auto = 0;
+    }
   }
   else {
     manual();
@@ -130,20 +144,27 @@ void align() {
       }
     }
   else {
-    ++cnt;
+    ++cnt_alg;
   }
 
-  if (cnt >= 20 && abs(sensor_0 - sensor_1) <= 6) {
+  if (cnt_alg >= 20 && abs(sensor_0 - sensor_1) <= 6) {
     alg = false;
-    cnt = 0;
+    cnt_alg = 0;
     group = 2;
+    auto_seq = false;
+    if(auto_m) {
+      auto_mv = true;
+    }
   }
 }
 
 void move_sd() {
   if (abs(current_pos - desired_pos) <= 5) {
     move = false;
-    auto_m = false;
+    if(auto_m) {
+      auto_mv = false;
+      auto_seq = true;
+    }
   }
   else if (current_pos > desired_pos) {
     for (int j = 0; j < group; j++) {
