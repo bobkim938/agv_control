@@ -18,7 +18,6 @@ int P, I, D, prev_e = 0;
 float current_pos = 0;
 float desired_pos = 0;
 float start_pos = 0;
-int alg_x = 1;
 
 int cnt = 0;
 
@@ -27,7 +26,7 @@ uint8_t commandState, group = 2;
 
 bool alg = false;
 bool move = false;
-bool alg_mv = false;
+bool auto_m = false;
 
 int sensor_0; // right
 int sensor_1; // left
@@ -61,20 +60,8 @@ void setup() {
 
 void loop() {
   if (Serial.available() <= 0) return;
-  int incomingByte = Serial.read(); // 'M' or 'm' for alignmnent
-  if (incomingByte == 77 || incomingByte == 109) {
-    alg = true;
-  }
-  else if (incomingByte == 67 || incomingByte == 99) {  // 'C' or 'c' for move
-    desired_pos = current_pos + 475;
-    move = true;
-  }
-  else if (incomingByte == 62) {  // '>'
-    start_pos = current_pos;
-    alg_mv = true;
-    desired_pos = current_pos + 475;
-  }
-  else setCommand(incomingByte);
+  int incomingByte = Serial.read(); 
+  setCommand(incomingByte);
 }
 
 void callbackCommand() {
@@ -87,19 +74,12 @@ void callbackCommand() {
   Serial.println(sensor_2);
   Serial.println("");
 
-  if (alg && cnt<=20) align();
+  if (alg) align();
 
   else if (move) move_sd();
 
-  else if (alg_mv) {
-    if(abs(current_pos - start_pos*alg_x) <= 5) {
-      if(abs(sensor_0 - sensor_1) >= 6 && cnt<=20) align();
-      else {
-        cnt = 0;
-        alg_x++;
-      }
-    }
-    else move_sd();
+  else if (auto_m) {
+    
   }
 
   else {
@@ -126,6 +106,14 @@ void setCommand(int incomingByte) {
     commandState = 7;
   } else if ((incomingByte == 68) || (incomingByte == 100)) { // D or d
     commandState = 8;
+  } else if (incomingByte == 77 || incomingByte == 109) { // 'M' or 'm' for alignmnent
+    alg = true;
+  } else if (incomingByte == 67 || incomingByte == 99) {  // 'C' or 'c' for move side
+    desired_pos = current_pos + 475;
+    move = true;
+  } else if (incomingByte == 90 || incomingByte == 122) {  // 'Z' or 'z' for auto mode
+    start_pos = current_pos;
+    auto_m = true;
   }
 }
 
@@ -148,13 +136,19 @@ void align() {
     else {
       ++cnt;
     }
+
+    if (cnt >= 20 && abs(sensor_0 - sensor_1) <= 6) {
+      alg = false;
+      cnt = 0;
+      group = 2;
+    }
 }
 
 void move_sd() {
   if (abs(current_pos - desired_pos) <= 5) {
     move = false;
-    alg_mv = false;
-    }
+    auto_m = false;
+  }
   else if (current_pos > desired_pos) {
     for (int j = 0; j < group; j++) {
       for (int i = 0; i < 11; i++) rs485.write(left[i]);
@@ -168,9 +162,6 @@ void move_sd() {
 }
 
 void manual() {
-  cnt = 0;
-    alg = false;
-    group = 2;
   switch (commandState) {
     case 0: // idle
       for (int i = 0; i < 11; i++) rs485.write(idle[i]);
