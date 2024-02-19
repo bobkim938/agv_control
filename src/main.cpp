@@ -78,7 +78,7 @@ void callbackCommand() {
 
   if (alg) align();
   else if (move) move_sd();
-  else if (auto_m) {
+  else if (auto_m) { // AUTO MODE ONLY ENABLES ON THE FIRST PRESS (NEED TO BE REVISED)
     if(auto_seq) {
       alg = true;
       cnt_auto++;
@@ -90,6 +90,7 @@ void callbackCommand() {
     if(cnt_auto >= 5) {
       auto_m = false;
       cnt_auto = 0;
+      auto_seq = true;
     }
   }
   else {
