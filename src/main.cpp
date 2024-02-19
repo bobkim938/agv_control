@@ -14,6 +14,8 @@ const uint8_t Kp = 12;
 const uint8_t Ki = 0;
 const uint8_t Kd = 5;
 int P, I, D, prev_e = 0;
+float sample_t = 0.05;
+int tau = 2;
 float current_pos = 0;
 float desired_pos = 0;
 float start_pos = 0;
@@ -250,14 +252,16 @@ int PID() {
   int error = abs(sensor_0 - sensor_1);
 
   P = Kp * error;
-  I += (Ki * error);
-  D = Kd * (error - prev_e);
+  I += Ki * sample_t * (error + prev_e) * 0.5;
+  D = ((2 * Kd) / (sample_t + 2 * tau)) * (error - prev_e) - (
+        (sample_t - 2 * tau) / (sample_t + 2 * tau)) * D;
 
   prev_e = error;
   int PID = P + I + D;
   
   // anti-windup
-  if (PID > 300) PID = 300;
+  if (PID > 500) PID = 500;
   else if (PID < 0) PID = abs(PID);
+
   return PID/100;
 }
