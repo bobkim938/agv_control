@@ -165,8 +165,7 @@ void align() {
       auto_mv = true;
     }
   }
-
-  if (millis() - alg_timeout >= 10000 && auto_m && abs(sensor_0 - sensor_1) <= 8) {
+  else if (millis() - alg_timeout >= 10000 && auto_m && abs(sensor_0 - sensor_1) <= 8) {
       auto_seq = false;
       auto_mv = true;
   }
