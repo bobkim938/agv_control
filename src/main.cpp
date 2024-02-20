@@ -23,6 +23,8 @@ float start_pos = 0;
 int cnt_alg = 0;
 int cnt_auto = 0;
 
+unsigned long alg_timeout = 0;
+
 uint32_t lastCommand = 0; 
 uint8_t commandState, group = 2;
 
@@ -131,6 +133,10 @@ void setCommand(int incomingByte) {
 }
 
 void align() {
+  if(cnt_alg == 0) {
+    alg_timeout = millis();
+  }
+
   if (abs(sensor_0 - sensor_1) >= 6) {
       group = PID();
       if (sensor_0 > sensor_1) {
@@ -154,10 +160,15 @@ void align() {
     alg = false;
     cnt_alg = 0;
     group = 2;
-    auto_seq = false;
     if(auto_m) {
+      auto_seq = false;
       auto_mv = true;
     }
+  }
+
+  if (millis() - alg_timeout >= 10000 && auto_m && abs(sensor_0 - sensor_1) <= 8) {
+      auto_seq = false;
+      auto_mv = true;
   }
 }
 
