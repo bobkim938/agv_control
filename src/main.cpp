@@ -329,9 +329,9 @@ int PID(int err_state) {
   }
   else if(err_state == 2) {
     error = abs(maintain_y - current_pos_long);
-    Kp = 5;
-    Ki = 2;
-    Kd = 5;
+    Kp = 2;
+    Ki = 0;
+    Kd = 1;
 
     P = Kp * error;
     I += Ki * sample_t * (error + prev_e) * 0.5;
