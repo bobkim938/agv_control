@@ -11,9 +11,9 @@ const uint8_t deviceID = 0;
 RS485 rs485(&Serial1, sendPin);  //uses default deviceID
 
 // PID parameters
-uint8_t Kp;
-uint8_t Ki;
-uint8_t Kd;
+const uint8_t Kp = 12;
+const uint8_t Ki = 0;
+const uint8_t Kd = 5;
 int P, I, D, prev_e = 0;
 float sample_t = 0.05;
 int tau = 2;
@@ -26,7 +26,7 @@ float desired_pos_lat = 0;
 float start_pos_lat = 0;
 
 // longitudinal motion
-int maintain_y = 601; // fixed y position for scanning (300 mm)
+int maintain_y; // fixed y position for scanning (300 mm)
 int current_pos_long = 0;
 
 uint32_t lastCommand = 0; 
@@ -66,7 +66,7 @@ void align();
 void move_lat();  // lateral motion
 void move_long(); // longitudinal motion
 void manual();
-int PID(int err_state);
+int PID();
 
 void setup() {
   Serial.begin(115200);
@@ -153,7 +153,7 @@ void setCommand(int incomingByte) {
 
 void align() {
   if (abs(sensor_0 - sensor_1) >= 6) {
-      group = PID(1);
+      group = PID();
       if (sensor_0 > sensor_1) {
           for (int j = 0; j < group; j++) {
             for (int i = 0; i < 11; i++) rs485.write(ccw[i]);
@@ -209,7 +209,22 @@ void move_lat() {
 }
 
 void move_long() {
-  group = PID(2);
+  if(current_pos_long > 655) {
+    maintain_y = 655;
+  }
+  else if(current_pos_long > 630 && current_pos_long <= 655) {
+    maintain_y = 630;
+  }
+  else if (current_pos_long >= 545 && current_pos_long < 570) {
+    maintain_y = 570;
+  }
+  else if (current_pos_long < 545) {
+    maintain_y = 545;
+  }
+  else {
+    maintain_y = current_pos_long;
+  }
+
   if(abs(current_pos_long - maintain_y) > 5) {
     if (current_pos_long > maintain_y) {
       for (int j = 0; j < group; j++) {
@@ -223,13 +238,7 @@ void move_long() {
     }
   }
   else {
-    ++cnt_long;
-  }
-
-  if(abs(current_pos_long - maintain_y) <= 5 && cnt_long == 20) {
     mv_long = false;
-    cnt_long = 0;
-    prev_e = 0;
     group = 2;
     if (auto_md && !auto_long) {
       start_long = false;
@@ -309,13 +318,8 @@ void manual() {
   }
 }
 
-int PID(int err_state) {
-  int error;
-  if(err_state == 1) {
-    error = abs(sensor_0 - sensor_1);
-    Kp = 12;
-    Ki = 0;
-    Kd = 5;
+int PID() {
+    int error = abs(sensor_0 - sensor_1);
     P = Kp * error;
     I += Ki * sample_t * (error + prev_e) * 0.5;
     D = ((2 * Kd) / (sample_t + 2 * tau)) * (error - prev_e) - (
@@ -329,25 +333,4 @@ int PID(int err_state) {
     else if (PID < 0) PID = abs(PID);
 
     return PID/100;
-  }
-  else if(err_state == 2) {
-    error = abs(maintain_y - current_pos_long);
-    Kp = 2;
-    Ki = 0;
-    Kd = 1;
-
-    P = Kp * error;
-    I += Ki * sample_t * (error + prev_e) * 0.5;
-    D = ((2 * Kd) / (sample_t + 2 * tau)) * (error - prev_e) - (
-          (sample_t - 2 * tau) / (sample_t + 2 * tau)) * D;
-
-    prev_e = error;
-    int PID = P + I + D;
-
-    if (PID > 300) PID = 300;
-    else if (PID < 0) PID = abs(PID);
-
-    return PID/100;
-  }
-  else return 0;
 }
