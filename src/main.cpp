@@ -214,9 +214,11 @@ void move_long() {
   }
   else if(current_pos_long > 630 && current_pos_long <= 655) {
     maintain_y = 630;
+    group = 1;
   }
   else if (current_pos_long >= 545 && current_pos_long < 570) {
     maintain_y = 570;
+    group = 1;
   }
   else if (current_pos_long < 545) {
     maintain_y = 545;
