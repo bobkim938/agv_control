@@ -10,32 +10,37 @@ const uint8_t sendPin  = 8;
 const uint8_t deviceID = 0;
 RS485 rs485(&Serial1, sendPin);  //uses default deviceID
 
+// PID parameters
 const uint8_t Kp = 12;
 const uint8_t Ki = 0;
 const uint8_t Kd = 5;
 int P, I, D, prev_e = 0;
 float sample_t = 0.05;
 int tau = 2;
-float current_pos = 0;
-float desired_pos = 0;
-float start_pos = 0;
-
 int cnt_alg = 0;
-int cnt_auto = 0;
+
+// lateral motion
+float current_pos_lat = 0;
+float desired_pos_lat = 0;
+float start_pos_lat = 0;
+
+// longitudinal motion
+int maintain_y = 601; // fixed y position for scanning (300 mm)
+int current_pos_long = 0;
 
 unsigned long alg_timeout = 0;
 
 uint32_t lastCommand = 0; 
 uint8_t commandState, group = 2;
 
-bool alg = false;
-bool move = false;
-bool auto_m = false;
-bool auto_seq = true;
-bool auto_mv = false;
+// internal flags for control
+bool alg = false;         // angular alignment 
+bool mv_lat = false;      // lateral motion 500 mm
+bool mv_long = false;     // longitudinal motion
+bool auto_mv = false;     // auto mode (angular + lateral + longitudinal motion)
 
-int sensor_0; // right
-int sensor_1; // left
+int sensor_0; // right ultrasonic
+int sensor_1; // left ultrasonic
 int sensor_2; // tof
 
 byte idle[11]   = {0x01, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x87, 0x4A}; 
@@ -51,7 +56,8 @@ byte right[11]  = {0x01, 0x06, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0xFE, 0
 void callbackCommand();
 void setCommand(int incomingByte);
 void align();
-void move_sd();
+void move_lat();  // lateral motion
+void move_long(); // longitudinal motion
 void manual();
 int PID();
 
@@ -74,29 +80,15 @@ void callbackCommand() {
   sensor_0 = analogRead(sonic_0);
   sensor_1 = analogRead(sonic_1);
   sensor_2 = analogRead(tof);
-  current_pos = sensor_2 * 2.4438 + 150;
+  current_pos_lat = sensor_2 * 2.4438 + 150;
   Serial.println(sensor_0);
   Serial.println(sensor_1);
   Serial.println(sensor_2);
   Serial.println("");
 
   if (alg) align();
-  else if (move) move_sd();
-  else if (auto_m) { // AUTO MODE ONLY ENABLES ON THE FIRST PRESS (NEED TO BE REVISED)
-    if(auto_seq) {
-      alg = true;
-      cnt_auto++;
-    }
-    else if(auto_mv) {
-      desired_pos = start_pos + 100 * cnt_auto;
-      move = true;
-    }
-    if(cnt_auto >= 5) {
-      auto_m = false;
-      cnt_auto = 0;
-      auto_seq = true;
-    }
-  }
+  else if (mv_lat) move_lat();
+  else if (mv_long) move_long();
   else {
     manual();
   }
@@ -124,11 +116,12 @@ void setCommand(int incomingByte) {
   } else if (incomingByte == 77 || incomingByte == 109) { // 'M' or 'm' for alignmnent
     alg = true;
   } else if (incomingByte == 67 || incomingByte == 99) {  // 'C' or 'c' for move side 500 mm
-    desired_pos = current_pos + 475;
-    move = true;
+    desired_pos_lat = current_pos_lat + 475;
+    mv_lat = true;
+  } else if (incomingByte == 78 || incomingByte == 110) { // 'N' or 'n' for adjusting longitudinal position
+    mv_long = true;
   } else if (incomingByte == 90 || incomingByte == 122) {  // 'Z' or 'z' for auto mode
-    start_pos = current_pos;
-    auto_m = true;
+    start_pos_lat = current_pos_lat;
   }
 }
 
@@ -160,35 +153,40 @@ void align() {
     alg = false;
     cnt_alg = 0;
     group = 2;
-    if(auto_m) {
-      auto_seq = false;
-      auto_mv = true;
-    }
-  }
-  else if (millis() - alg_timeout >= 10000 && auto_m && abs(sensor_0 - sensor_1) <= 8) {
-      auto_seq = false;
-      auto_mv = true;
   }
 }
 
-void move_sd() {
-  if (abs(current_pos - desired_pos) <= 5) {
-    move = false;
-    if(auto_m) {
-      auto_mv = false;
-      auto_seq = true;
-    }
+void move_lat() {
+  if (abs(current_pos_lat - desired_pos_lat) <= 5) {
+    mv_lat = false;
   }
-  else if (current_pos > desired_pos) {
+  else if (current_pos_lat > desired_pos_lat) {
     for (int j = 0; j < group; j++) {
       for (int i = 0; i < 11; i++) rs485.write(left[i]);
     }
   }
-  else if (current_pos < desired_pos) {
+  else if (current_pos_lat < desired_pos_lat) {
     for (int j = 0; j < group; j++) {
       for (int i = 0; i < 11; i++) rs485.write(right[i]);
     }
   }
+}
+
+void move_long() {
+  current_pos_long = (sensor_0 + sensor_1) * 0.5;
+    if (abs(current_pos_long - maintain_y) <= 5) {
+      mv_long = false;
+    }
+    else if (current_pos_long > maintain_y) {
+      for (int j = 0; j < group; j++) {
+        for (int i = 0; i < 11; i++) rs485.write(fwd[i]);
+      }
+    }
+    else if (current_pos_long < maintain_y) {
+      for (int j = 0; j < group; j++) {
+        for (int i = 0; i < 11; i++) rs485.write(bkwd[i]);
+      }
+    }
 }
 
 void manual() {
