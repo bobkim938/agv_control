@@ -313,32 +313,38 @@ int PID(int err_state) {
     Kp = 12;
     Ki = 0;
     Kd = 5;
+    P = Kp * error;
+    I += Ki * sample_t * (error + prev_e) * 0.5;
+    D = ((2 * Kd) / (sample_t + 2 * tau)) * (error - prev_e) - (
+          (sample_t - 2 * tau) / (sample_t + 2 * tau)) * D;
+
+    prev_e = error;
+    int PID = P + I + D;
+
+    // anti-windup
+    if (PID > 500) PID = 500;
+    else if (PID < 0) PID = abs(PID);
+
+    return PID/100;
   }
   else if(err_state == 2) {
     error = abs(maintain_y - current_pos_long);
     Kp = 5;
     Ki = 2;
     Kd = 5;
-  }
-  else return 0;
 
-  P = Kp * error;
-  I += Ki * sample_t * (error + prev_e) * 0.5;
-  D = ((2 * Kd) / (sample_t + 2 * tau)) * (error - prev_e) - (
-        (sample_t - 2 * tau) / (sample_t + 2 * tau)) * D;
+    P = Kp * error;
+    I += Ki * sample_t * (error + prev_e) * 0.5;
+    D = ((2 * Kd) / (sample_t + 2 * tau)) * (error - prev_e) - (
+          (sample_t - 2 * tau) / (sample_t + 2 * tau)) * D;
 
-  prev_e = error;
-  int PID = P + I + D;
-  
-  // anti-windup
-  if (err_state == 1) {
-    if (PID > 500) PID = 500;
-    else if (PID < 0) PID = abs(PID);
-  }
-  else if (err_state == 2) {
+    prev_e = error;
+    int PID = P + I + D;
+
     if (PID > 300) PID = 300;
     else if (PID < 0) PID = abs(PID);
-  }
 
-  return PID/100;
+    return PID/100;
+  }
+  else return 0;
 }
