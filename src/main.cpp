@@ -210,10 +210,8 @@ void move_lat() {
 
 void move_long() {
   group = PID(2);
-    if (abs(current_pos_long - maintain_y) <= 5) {
-      cnt_long++;
-    }
-    else if (current_pos_long > maintain_y) {
+  if(abs(current_pos_long - maintain_y) > 5) {
+    if (current_pos_long > maintain_y) {
       for (int j = 0; j < group; j++) {
         for (int i = 0; i < 11; i++) rs485.write(fwd[i]);
       }
@@ -223,20 +221,25 @@ void move_long() {
         for (int i = 0; i < 11; i++) rs485.write(bkwd[i]);
       }
     }
+  }
+  else {
+    ++cnt_long;
+  }
 
-    if(abs(current_pos_long - maintain_y) <= 5 && cnt_long == 20) {
-      mv_long = false;
-      cnt_long = 0;
-      prev_e = 0;
-      if (auto_md && !auto_long) {
-        start_long = false;
-        auto_lat = true;
-      }
-      else if (auto_md && auto_long) {
-        auto_long = false;
-        final_alg = true;
-      }
+  if(abs(current_pos_long - maintain_y) <= 5 && cnt_long == 20) {
+    mv_long = false;
+    cnt_long = 0;
+    prev_e = 0;
+    group = 2;
+    if (auto_md && !auto_long) {
+      start_long = false;
+      auto_lat = true;
     }
+    else if (auto_md && auto_long) {
+      auto_long = false;
+      final_alg = true;
+    }
+  }
 }
 
 void manual() {
