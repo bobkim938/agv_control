@@ -134,7 +134,7 @@ void setCommand(int incomingByte) {
   } else if (incomingByte == 77 || incomingByte == 109) { // 'M' or 'm' for alignmnent
     alg = true;
   } else if (incomingByte == 67 || incomingByte == 99) {  // 'C' or 'c' for move side 500 mm
-    desired_pos_lat = current_pos_lat + 475;
+    desired_pos_lat = current_pos_lat + 500;
     mv_lat = true;
   } else if (incomingByte == 78 || incomingByte == 110) { // 'N' or 'n' for adjusting longitudinal position
     mv_long = true;
