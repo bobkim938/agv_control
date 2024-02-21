@@ -28,8 +28,6 @@ float start_pos_lat = 0;
 int maintain_y = 601; // fixed y position for scanning (300 mm)
 int current_pos_long = 0;
 
-unsigned long alg_timeout = 0;
-
 uint32_t lastCommand = 0; 
 uint8_t commandState, group = 2;
 
@@ -37,11 +35,17 @@ uint8_t commandState, group = 2;
 bool alg = false;         // angular alignment 
 bool mv_lat = false;      // lateral motion 500 mm
 bool mv_long = false;     // longitudinal motion
-bool auto_mv = false;     // auto mode (angular + lateral + longitudinal motion)
+bool auto_md = false;     // auto mode (angular + lateral + longitudinal motion)
+bool start_alg = true;     // start alignment flag in auto mode
+bool auto_lat = false;   // lateral motion flag in auto mode
+bool auto_long = false;  // longitudinal motion flag in auto mode
+bool final_alg = false;   // final alignment flag in auto mode
 
 int sensor_0; // right ultrasonic
 int sensor_1; // left ultrasonic
-int sensor_2; // tof
+int sensor_2; // TOF 
+// longitudinal pos = (485/1023) * (sensor_0 + sensor_1) * 0.5 + 15
+// lateral pos = sensor_2 * (2350/1023) + 150;
 
 byte idle[11]   = {0x01, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x87, 0x4A}; 
 byte fwd[11]    = {0x01, 0x06, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x97, 0x8A};
@@ -80,7 +84,7 @@ void callbackCommand() {
   sensor_0 = analogRead(sonic_0);
   sensor_1 = analogRead(sonic_1);
   sensor_2 = analogRead(tof);
-  current_pos_lat = sensor_2 * 2.4438 + 150;
+  current_pos_lat = sensor_2 * 2.297 + 150;
   Serial.println(sensor_0);
   Serial.println(sensor_1);
   Serial.println(sensor_2);
@@ -89,6 +93,20 @@ void callbackCommand() {
   if (alg) align();
   else if (mv_lat) move_lat();
   else if (mv_long) move_long();
+  else if (auto_md) {
+    if(start_alg) {
+      alg = true;
+    }
+    else if(auto_lat) {
+      mv_lat = true;
+    }
+    else if(auto_long) {
+      mv_long = true;
+    }
+    else if(final_alg) {
+      alg = true;
+    }
+  }
   else {
     manual();
   }
@@ -121,15 +139,12 @@ void setCommand(int incomingByte) {
   } else if (incomingByte == 78 || incomingByte == 110) { // 'N' or 'n' for adjusting longitudinal position
     mv_long = true;
   } else if (incomingByte == 90 || incomingByte == 122) {  // 'Z' or 'z' for auto mode
-    start_pos_lat = current_pos_lat;
+    auto_md = true;
+    desired_pos_lat = current_pos_lat + 500; // lateral setpoint
   }
 }
 
 void align() {
-  if(cnt_alg == 0) {
-    alg_timeout = millis();
-  }
-
   if (abs(sensor_0 - sensor_1) >= 6) {
       group = PID();
       if (sensor_0 > sensor_1) {
@@ -153,12 +168,26 @@ void align() {
     alg = false;
     cnt_alg = 0;
     group = 2;
+
+    if(auto_md) {
+      start_alg = false;
+      auto_lat = true;
+      if(final_alg) {
+        final_alg = false;
+        auto_md = false;
+        start_alg = true;
+      }
+    }
   }
 }
 
 void move_lat() {
   if (abs(current_pos_lat - desired_pos_lat) <= 5) {
     mv_lat = false;
+    if(auto_md) {
+      auto_lat = false;
+      auto_long = true;
+    }
   }
   else if (current_pos_lat > desired_pos_lat) {
     for (int j = 0; j < group; j++) {
@@ -176,6 +205,10 @@ void move_long() {
   current_pos_long = (sensor_0 + sensor_1) * 0.5;
     if (abs(current_pos_long - maintain_y) <= 5) {
       mv_long = false;
+      if (auto_md) {
+        auto_long = false;
+        final_alg = true;
+      }
     }
     else if (current_pos_long > maintain_y) {
       for (int j = 0; j < group; j++) {
