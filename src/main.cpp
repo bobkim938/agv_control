@@ -31,12 +31,13 @@ int current_pos_long = 0;
 uint32_t lastCommand = 0; 
 uint8_t commandState, group = 2;
 
-// internal flags for control
+// internal flags for traffic control
 bool alg = false;         // angular alignment 
 bool mv_lat = false;      // lateral motion 500 mm
 bool mv_long = false;     // longitudinal motion
 bool auto_md = false;     // auto mode (angular + lateral + longitudinal motion)
 bool start_alg = true;     // start alignment flag in auto mode
+bool start_long = true ;  // start longitudinal adjustment flag in auto mode
 bool auto_lat = false;   // lateral motion flag in auto mode
 bool auto_long = false;  // longitudinal motion flag in auto mode
 bool final_alg = false;   // final alignment flag in auto mode
@@ -47,6 +48,7 @@ int sensor_2; // TOF
 // longitudinal pos = (485/1023) * (sensor_0 + sensor_1) * 0.5 + 15
 // lateral pos = sensor_2 * (2350/1023) + 150;
 
+// RS485 commands
 byte idle[11]   = {0x01, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x87, 0x4A}; 
 byte fwd[11]    = {0x01, 0x06, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x97, 0x8A};
 byte bkwd[11]   = {0x01, 0x06, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xA4, 0x8A};
@@ -96,6 +98,9 @@ void callbackCommand() {
   else if (auto_md) {
     if(start_alg) {
       alg = true;
+    }
+    else if(start_long) {
+      mv_long = true;
     }
     else if(auto_lat) {
       mv_lat = true;
@@ -171,7 +176,7 @@ void align() {
 
     if(auto_md) {
       start_alg = false;
-      auto_lat = true;
+      start_long = true;
       if(final_alg) {
         final_alg = false;
         auto_md = false;
@@ -205,7 +210,11 @@ void move_long() {
   current_pos_long = (sensor_0 + sensor_1) * 0.5;
     if (abs(current_pos_long - maintain_y) <= 5) {
       mv_long = false;
-      if (auto_md) {
+      if (auto_md && !auto_long) {
+        start_long = false;
+        auto_lat = true;
+      }
+      else if (auto_md && auto_long) {
         auto_long = false;
         final_alg = true;
       }
