@@ -11,9 +11,9 @@ const uint8_t deviceID = 0;
 RS485 rs485(&Serial1, sendPin);  //uses default deviceID
 
 // PID parameters
-const uint8_t Kp = 12;
-const uint8_t Ki = 0;
-const uint8_t Kd = 5;
+uint8_t Kp;
+uint8_t Ki;
+uint8_t Kd;
 int P, I, D, prev_e = 0;
 float sample_t = 0.05;
 int tau = 2;
@@ -88,6 +88,7 @@ void callbackCommand() {
   sensor_1 = analogRead(sonic_1);
   sensor_2 = analogRead(tof);
   current_pos_lat = sensor_2 * 2.297 + 150;
+  current_pos_long = (sensor_0 + sensor_1) * 0.5;
   Serial.println(sensor_0);
   Serial.println(sensor_1);
   Serial.println(sensor_2);
@@ -175,7 +176,6 @@ void align() {
     cnt_alg = 0;
     group = 2;
     prev_e = 0;
-
     if(auto_md) {
       start_alg = false;
       start_long = true;
@@ -209,7 +209,6 @@ void move_lat() {
 }
 
 void move_long() {
-  current_pos_long = (sensor_0 + sensor_1) * 0.5;
   group = PID(2);
     if (abs(current_pos_long - maintain_y) <= 5) {
       cnt_long++;
@@ -272,7 +271,7 @@ void manual() {
         for (int i = 0; i < 11; i++) rs485.write(cw[i]);
       }
       commandState = 0;
-      break;int error = abs(sensor_0 - sensor_1);
+      break;
 
     case 5: // slower
       for (int j = 0; j < group; j++) {
@@ -309,8 +308,18 @@ void manual() {
 
 int PID(int err_state) {
   int error;
-  if(err_state == 1) error = abs(sensor_0 - sensor_1);
-  else if(err_state == 2) error = abs(maintain_y - current_pos_long);
+  if(err_state == 1) {
+    error = abs(sensor_0 - sensor_1);
+    Kp = 12;
+    Ki = 0;
+    Kd = 5;
+  }
+  else if(err_state == 2) {
+    error = abs(maintain_y - current_pos_long);
+    Kp = 5;
+    Ki = 2;
+    Kd = 5;
+  }
   else return 0;
 
   P = Kp * error;
@@ -322,8 +331,14 @@ int PID(int err_state) {
   int PID = P + I + D;
   
   // anti-windup
-  if (PID > 500) PID = 500;
-  else if (PID < 0) PID = abs(PID);
+  if (err_state == 1) {
+    if (PID > 500) PID = 500;
+    else if (PID < 0) PID = abs(PID);
+  }
+  else if (err_state == 2) {
+    if (PID > 300) PID = 300;
+    else if (PID < 0) PID = abs(PID);
+  }
 
   return PID/100;
 }
