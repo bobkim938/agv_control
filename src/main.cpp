@@ -18,6 +18,7 @@ int P, I, D, prev_e = 0;
 float sample_t = 0.05;
 int tau = 2;
 int cnt_alg = 0;
+int cnt_long = 0;
 
 // lateral motion
 float current_pos_lat = 0;
@@ -65,7 +66,7 @@ void align();
 void move_lat();  // lateral motion
 void move_long(); // longitudinal motion
 void manual();
-int PID();
+int PID(int err_state);
 
 void setup() {
   Serial.begin(115200);
@@ -151,7 +152,7 @@ void setCommand(int incomingByte) {
 
 void align() {
   if (abs(sensor_0 - sensor_1) >= 6) {
-      group = PID();
+      group = PID(1);
       if (sensor_0 > sensor_1) {
           for (int j = 0; j < group; j++) {
             for (int i = 0; i < 11; i++) rs485.write(ccw[i]);
@@ -173,6 +174,7 @@ void align() {
     alg = false;
     cnt_alg = 0;
     group = 2;
+    prev_e = 0;
 
     if(auto_md) {
       start_alg = false;
@@ -208,16 +210,9 @@ void move_lat() {
 
 void move_long() {
   current_pos_long = (sensor_0 + sensor_1) * 0.5;
+  group = PID(2);
     if (abs(current_pos_long - maintain_y) <= 5) {
-      mv_long = false;
-      if (auto_md && !auto_long) {
-        start_long = false;
-        auto_lat = true;
-      }
-      else if (auto_md && auto_long) {
-        auto_long = false;
-        final_alg = true;
-      }
+      cnt_long++;
     }
     else if (current_pos_long > maintain_y) {
       for (int j = 0; j < group; j++) {
@@ -227,6 +222,20 @@ void move_long() {
     else if (current_pos_long < maintain_y) {
       for (int j = 0; j < group; j++) {
         for (int i = 0; i < 11; i++) rs485.write(bkwd[i]);
+      }
+    }
+
+    if(abs(current_pos_long - maintain_y) <= 5 && cnt_long == 20) {
+      mv_long = false;
+      cnt_long = 0;
+      prev_e = 0;
+      if (auto_md && !auto_long) {
+        start_long = false;
+        auto_lat = true;
+      }
+      else if (auto_md && auto_long) {
+        auto_long = false;
+        final_alg = true;
       }
     }
 }
@@ -263,7 +272,7 @@ void manual() {
         for (int i = 0; i < 11; i++) rs485.write(cw[i]);
       }
       commandState = 0;
-      break;
+      break;int error = abs(sensor_0 - sensor_1);
 
     case 5: // slower
       for (int j = 0; j < group; j++) {
@@ -298,8 +307,11 @@ void manual() {
   }
 }
 
-int PID() {
-  int error = abs(sensor_0 - sensor_1);
+int PID(int err_state) {
+  int error;
+  if(err_state == 1) error = abs(sensor_0 - sensor_1);
+  else if(err_state == 2) error = abs(maintain_y - current_pos_long);
+  else return 0;
 
   P = Kp * error;
   I += Ki * sample_t * (error + prev_e) * 0.5;
