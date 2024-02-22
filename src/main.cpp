@@ -93,8 +93,6 @@ void callbackCommand() {
   sensor_2 = analogRead(tof);
   current_pos_lat = sensor_2 * 2.297 + 150;
   current_pos_long = ((sensor_0 + sensor_1) * 0.5);
-  Serial.write(byte(current_pos_lat));
-  Serial.write(byte((485/1023) * current_pos_long + 15));
   Serial.println(sensor_0);
   Serial.println(sensor_1);
   Serial.println(sensor_2);
