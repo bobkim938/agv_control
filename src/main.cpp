@@ -93,6 +93,8 @@ void callbackCommand() {
   sensor_2 = analogRead(tof);
   current_pos_lat = sensor_2 * 2.297 + 150;
   current_pos_long = ((sensor_0 + sensor_1) * 0.5);
+  Serial.write(byte(current_pos_lat));
+  Serial.write(byte((485/1023) * current_pos_long + 15));
   Serial.println(sensor_0);
   Serial.println(sensor_1);
   Serial.println(sensor_2);
@@ -109,28 +111,28 @@ void callbackCommand() {
 void setCommand(int incomingByte, char* num = nullptr) {
   if (incomingByte == 32) { // space
     commandState = 0;
-  } else if ((incomingByte == 87) || (incomingByte == 119)) { // W or w
+  } else if ((incomingByte == 87) || (incomingByte == 119)) { // W or w(forward)
     commandState = 1;
-  } else if ((incomingByte == 83) || (incomingByte == 115)) { // S or s
+  } else if ((incomingByte == 83) || (incomingByte == 115)) { // S or s(backward)
     commandState = 2;
-  } else if ((incomingByte == 81) || (incomingByte == 113)) { // Q or q
+  } else if ((incomingByte == 81) || (incomingByte == 113)) { // Q or q(ccw)
     commandState = 3;
-  } else if ((incomingByte == 69) || (incomingByte == 101)) { // E or e
+  } else if ((incomingByte == 69) || (incomingByte == 101)) { // E or e (cw)
     commandState = 4;
-  } else if (incomingByte == 45) { // -
+  } else if (incomingByte == 45) { // -(slower)
     commandState = 5;
-  } else if (incomingByte == 43) { // +
+  } else if (incomingByte == 43) { // +(faster)
     commandState = 6;
-  } else if ((incomingByte == 65) || (incomingByte == 97)) { // A or a
+  } else if ((incomingByte == 65) || (incomingByte == 97)) { // A or a (move left)
     commandState = 7;
-  } else if ((incomingByte == 68) || (incomingByte == 100)) { // D or d
+  } else if ((incomingByte == 68) || (incomingByte == 100)) { // D or d (move right)
     commandState = 8;
   } else if (incomingByte == 77 || incomingByte == 109) { // 'M' or 'm' for alignmnent
     alg = true;
-  } else if (incomingByte == 67 || incomingByte == 99) {  // 'C' or 'c' for move side
+  } else if (incomingByte == 67 || incomingByte == 99) {  // 'C(number)' or 'c' for move side TOF
     desired_pos_lat = current_pos_lat + atoi(num);
     mv_lat = true;
-  } else if (incomingByte == 78 || incomingByte == 110) { // 'N' or 'n' for adjusting longitudinal position
+  } else if (incomingByte == 78 || incomingByte == 110) { // 'N(number)' or 'n' for adjusting longitudinal position ULTRASONIC
     desired_pos_long = atoi(num);
     desired_pos_adc = (desired_pos_long - 15) / 0.474;
     mv_long = true;
@@ -187,32 +189,33 @@ void move_lat() {
 }
 
 void move_long() {
-  int dif = desired_pos_long - current_pos_long;
+  int dif = desired_pos_adc - current_pos_long;
+  int desired;
   if(dif > 55) {
-    desired_pos_long = current_pos_long + 55;
+    desired = desired_pos_adc+ 55;
   }
   else if(dif > 30 && dif <= 55) {
-    desired_pos_long = current_pos_long + 30;
+    desired = desired_pos_adc + 30;
     group = 1;
   }
   else if (dif < -30 && dif >= -55) {
-    desired_pos_long = current_pos_long - 30;
+    desired = desired_pos_adc - 30;
     group = 1;
   }
   else if (dif < -55) {
-    desired_pos_long = current_pos_long - 55;
+    desired = desired_pos_adc - 55;
   }
   else {
-    desired_pos_long = current_pos_long;
+    desired = current_pos_long;
   }
 
-  if(abs(current_pos_long - desired_pos_long) > 5) {
+  if(abs(current_pos_long - desired) > 5) {
     if (current_pos_long > desired_pos_long) {
       for (int j = 0; j < group; j++) {
         for (int i = 0; i < 11; i++) rs485.write(fwd[i]);
       }
     }
-    else if (current_pos_long < desired_pos_long) {
+    else if (current_pos_long < desired) {
       for (int j = 0; j < group; j++) {
         for (int i = 0; i < 11; i++) rs485.write(bkwd[i]);
       }
