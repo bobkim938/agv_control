@@ -78,15 +78,8 @@ void loop() {
     int incomingByte = Serial.read();
     if (incomingByte == 'N' || incomingByte == 'n' || incomingByte == 'C' || incomingByte == 'c') {
       char num[4]; 
-      int i = 0;
-      while (Serial.available() > 0 && i < sizeof(num) - 1) {
-        num[i] = Serial.read();
-        if (num[i] < '0' || num[i] > '9') {
-          break; 
-        }
-        i++;
-      }
-      num[i] = '\0';
+      Serial.readBytes(num,4);
+      num[3] = '\0';
       setCommand(incomingByte, num);
     } else {
       setCommand(incomingByte);
@@ -135,13 +128,11 @@ void setCommand(int incomingByte, char* num = nullptr) {
   } else if (incomingByte == 77 || incomingByte == 109) { // 'M' or 'm' for alignmnent
     alg = true;
   } else if (incomingByte == 67 || incomingByte == 99) {  // 'C' or 'c' for move side
-    int offset = atoi(num);
-    desired_pos_lat = current_pos_lat + offset;
+    desired_pos_lat = current_pos_lat + atoi(num);
     mv_lat = true;
   } else if (incomingByte == 78 || incomingByte == 110) { // 'N' or 'n' for adjusting longitudinal position
-    int desired = atoi(num);
-    desired_pos_long = desired;
-    desired_pos_adc = (desired - 15) / 0.474;
+    desired_pos_long = atoi(num);
+    desired_pos_adc = (desired_pos_long - 15) / 0.474;
     mv_long = true;
   }
 }
