@@ -133,6 +133,8 @@ void setCommand(int incomingByte) {
       int offset = atoi(num);
       desired_pos_long = current_pos_lat + offset;
       mv_lat = true;
+      Serial.println("move side");
+      Serial.println(desired_pos_lat);
     }
   } else if (incomingByte == 78 || incomingByte == 110) { // 'N' or 'n' for adjusting longitudinal position
     if (Serial.available() > 0) {
