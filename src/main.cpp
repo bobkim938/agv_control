@@ -130,9 +130,11 @@ void setCommand(int incomingByte, char* num = nullptr) {
   } else if (incomingByte == 77 || incomingByte == 109) { // 'M' or 'm' for alignmnent
     alg = true;
   } else if (incomingByte == 67 || incomingByte == 99) {  // 'C(number)' or 'c' for move side TOF
+    if(num == nullptr) return;
     desired_pos_lat = current_pos_lat + atoi(num);
     mv_lat = true;
   } else if (incomingByte == 78 || incomingByte == 110) { // 'N(number)' or 'n' for adjusting longitudinal position ULTRASONIC
+    if(num == nullptr) return;
     desired_pos_long = atoi(num);
     desired_pos_adc = (desired_pos_long - 15) / 0.474;
     mv_long = true;
