@@ -203,19 +203,20 @@ void move_lat() {
 }
 
 void move_long() {
-  if(current_pos_long > 655) {
-    desired_pos_long = 655;
+  int dif = desired_pos_long - current_pos_long;
+  if(dif > 55) {
+    desired_pos_long = current_pos_long + 55;
   }
-  else if(current_pos_long > 630 && current_pos_long <= 655) {
-    desired_pos_long = 630;
+  else if(dif > 30 && dif <= 55) {
+    desired_pos_long = current_pos_long + 30;
     group = 1;
   }
-  else if (current_pos_long >= 545 && current_pos_long < 570) {
-    desired_pos_long = 570;
+  else if (dif < -30 && dif >= -55) {
+    desired_pos_long = current_pos_long - 30;
     group = 1;
   }
-  else if (current_pos_long < 545) {
-    desired_pos_long = 545;
+  else if (dif < -55) {
+    desired_pos_long = current_pos_long - 55;
   }
   else {
     desired_pos_long = current_pos_long;
