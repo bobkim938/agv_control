@@ -23,10 +23,9 @@ int cnt_long = 0;
 // lateral motion
 float current_pos_lat = 0;
 float desired_pos_lat = 0;
-float start_pos_lat = 0;
 
 // longitudinal motion
-int maintain_y; // fixed y position for scanning (300 mm)
+int desired_pos_long; // fixed y position for scanning (300 mm)
 int current_pos_long = 0;
 
 uint32_t lastCommand = 0; 
@@ -38,12 +37,6 @@ unsigned long alg_timeout; // alignment timeout (10 seconds)
 bool alg = false;         // angular alignment 
 bool mv_lat = false;      // lateral motion 500 mm
 bool mv_long = false;     // longitudinal motion
-bool auto_md = false;     // auto mode (angular + lateral + longitudinal motion)
-bool start_alg = true;     // start alignment flag in auto mode
-bool start_long = true ;  // start longitudinal adjustment flag in auto mode
-bool auto_lat = false;   // lateral motion flag in auto mode
-bool auto_long = false;  // longitudinal motion flag in auto mode
-bool final_alg = false;   // final alignment flag in auto mode
 
 int sensor_0; // right ultrasonic
 int sensor_1; // left ultrasonic
@@ -99,23 +92,6 @@ void callbackCommand() {
   if (alg) align();
   else if (mv_lat) move_lat();
   else if (mv_long) move_long();
-  else if (auto_md) {
-    if(start_alg) {
-      alg = true;
-    }
-    else if(start_long) {
-      mv_long = true;
-    }
-    else if(auto_lat) {
-      mv_lat = true;
-    }
-    else if(auto_long) {
-      mv_long = true;
-    }
-    else if(final_alg) {
-      alg = true;
-    }
-  }
   else {
     manual();
   }
@@ -142,14 +118,38 @@ void setCommand(int incomingByte) {
     commandState = 8;
   } else if (incomingByte == 77 || incomingByte == 109) { // 'M' or 'm' for alignmnent
     alg = true;
-  } else if (incomingByte == 67 || incomingByte == 99) {  // 'C' or 'c' for move side 500 mm
-    desired_pos_lat = current_pos_lat + 500;
-    mv_lat = true;
+  } else if (incomingByte == 67 || incomingByte == 99) {  // 'C' or 'c' for move side
+  if (Serial.available() > 0) {
+      char num[4]; 
+      int i = 0;
+      while (Serial.available() > 0 && i < 3) {
+        num[i] = Serial.read();
+        if (num[i] < '0' || num[i] > '9') {
+          break;
+        }
+        i++;
+      }
+      num[i] = '\0'; 
+      int offset = atoi(num);
+      desired_pos_long = current_pos_lat + offset;
+      mv_lat = true;
+    }
   } else if (incomingByte == 78 || incomingByte == 110) { // 'N' or 'n' for adjusting longitudinal position
-    mv_long = true;
-  } else if (incomingByte == 90 || incomingByte == 122) {  // 'Z' or 'z' for auto mode
-    auto_md = true;
-    desired_pos_lat = current_pos_lat + 500; // lateral setpoint
+    if (Serial.available() > 0) {
+      char num[4]; 
+      int i = 0;
+      while (Serial.available() > 0 && i < 3) {
+        num[i] = Serial.read();
+        if (num[i] < '0' || num[i] > '9') {
+          break;
+        }
+        i++;
+      }
+      num[i] = '\0'; 
+      int offset = atoi(num);
+      desired_pos_long = current_pos_long + offset;
+      mv_long = true;
+    }
   }
 }
 
@@ -178,41 +178,17 @@ void align() {
     alg = false;
     cnt_alg = 0;
     group = 2;
-    prev_e = 0;
-    if(auto_md) {
-      start_alg = false;
-      start_long = true;
-      if(final_alg) {
-        final_alg = false;
-        auto_md = false;
-        start_alg = true;
-      }
-    }
   }
   else if (millis() - alg_timeout > 10000 && abs(sensor_0 - sensor_1) <= 10) {
     alg = false;
     cnt_alg = 0;
     group = 2;
-    prev_e = 0;
-    if(auto_md) {
-      start_alg = false;
-      start_long = true;
-      if(final_alg) {
-        final_alg = false;
-        auto_md = false;
-        start_alg = true;
-      }
-    }
   }
 }
 
 void move_lat() {
   if (abs(current_pos_lat - desired_pos_lat) <= 5) {
     mv_lat = false;
-    if(auto_md) {
-      auto_lat = false;
-      auto_long = true;
-    }
   }
   else if (current_pos_lat > desired_pos_lat) {
     for (int j = 0; j < group; j++) {
@@ -228,30 +204,30 @@ void move_lat() {
 
 void move_long() {
   if(current_pos_long > 655) {
-    maintain_y = 655;
+    desired_pos_long = 655;
   }
   else if(current_pos_long > 630 && current_pos_long <= 655) {
-    maintain_y = 630;
+    desired_pos_long = 630;
     group = 1;
   }
   else if (current_pos_long >= 545 && current_pos_long < 570) {
-    maintain_y = 570;
+    desired_pos_long = 570;
     group = 1;
   }
   else if (current_pos_long < 545) {
-    maintain_y = 545;
+    desired_pos_long = 545;
   }
   else {
-    maintain_y = current_pos_long;
+    desired_pos_long = current_pos_long;
   }
 
-  if(abs(current_pos_long - maintain_y) > 5) {
-    if (current_pos_long > maintain_y) {
+  if(abs(current_pos_long - desired_pos_long) > 5) {
+    if (current_pos_long > desired_pos_long) {
       for (int j = 0; j < group; j++) {
         for (int i = 0; i < 11; i++) rs485.write(fwd[i]);
       }
     }
-    else if (current_pos_long < maintain_y) {
+    else if (current_pos_long < desired_pos_long) {
       for (int j = 0; j < group; j++) {
         for (int i = 0; i < 11; i++) rs485.write(bkwd[i]);
       }
@@ -260,14 +236,6 @@ void move_long() {
   else {
     mv_long = false;
     group = 2;
-    if (auto_md && !auto_long) {
-      start_long = false;
-      auto_lat = true;
-    }
-    else if (auto_md && auto_long) {
-      auto_long = false;
-      final_alg = true;
-    }
   }
 }
 
