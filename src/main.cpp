@@ -32,6 +32,8 @@ int current_pos_long = 0;
 uint32_t lastCommand = 0; 
 uint8_t commandState, group = 2;
 
+unsigned long alg_timeout; // alignment timeout (10 seconds)
+
 // internal flags for traffic control
 bool alg = false;         // angular alignment 
 bool mv_lat = false;      // lateral motion 500 mm
@@ -152,6 +154,7 @@ void setCommand(int incomingByte) {
 }
 
 void align() {
+  alg_timeout = millis();
   if (abs(sensor_0 - sensor_1) >= 6) {
       group = PID();
       if (sensor_0 > sensor_1) {
@@ -172,6 +175,21 @@ void align() {
   }
 
   if (cnt_alg >= 20 && abs(sensor_0 - sensor_1) <= 6) {
+    alg = false;
+    cnt_alg = 0;
+    group = 2;
+    prev_e = 0;
+    if(auto_md) {
+      start_alg = false;
+      start_long = true;
+      if(final_alg) {
+        final_alg = false;
+        auto_md = false;
+        start_alg = true;
+      }
+    }
+  }
+  else if (millis() - alg_timeout > 10000 && abs(sensor_0 - sensor_1) <= 10) {
     alg = false;
     cnt_alg = 0;
     group = 2;
