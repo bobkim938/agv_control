@@ -129,7 +129,7 @@ void setCommand(int incomingByte, char* num = nullptr) {
     alg = true;
   } else if (incomingByte == 67 || incomingByte == 99) {  // 'C(number)' or 'c' for move side TOF
     for(int i = 0; i < 3; i++) {
-      // check if the number is valid
+      // check if the num is valid
       if (num[i] < '0' || num[i] > '9') {
           return;
         }
@@ -138,7 +138,7 @@ void setCommand(int incomingByte, char* num = nullptr) {
     mv_lat = true;
   } else if (incomingByte == 78 || incomingByte == 110) { // 'N(number)' or 'n' for adjusting longitudinal position ULTRASONIC
     for(int i = 0; i < 3; i++) {
-      // check if the number is valid
+      // check if the num is valid
       if (num[i] < '0' || num[i] > '9') {
           return;
         }
