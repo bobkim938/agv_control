@@ -58,10 +58,10 @@ byte right[11]  = {0x01, 0x06, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0xFE, 0
 
 void callbackCommand();
 void setCommand(int incomingByte, char* num = nullptr);
-void align();
+void align(); // angular adjustment
 void move_lat();  // lateral motion
 void move_long(); // longitudinal motion
-void manual();
+void manual(); // manual control
 int PID();
 
 void setup() {
