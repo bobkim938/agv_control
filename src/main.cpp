@@ -18,7 +18,6 @@ int P, I, D, prev_e = 0;
 float sample_t = 0.05;
 int tau = 2;
 int cnt_alg = 0;
-int cnt_long = 0;
 
 // lateral motion
 float current_pos_lat = 0;
