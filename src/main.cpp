@@ -146,9 +146,10 @@ void setCommand(int incomingByte, char* num = nullptr) {
     desired_pos_adc = (desired_pos_long - 15) / 0.474;
     mv_long = true;
   } else if (incomingByte == 80 || incomingByte == 112) { // 'P' or 'p' for sending sensor data
-    Serial.println(0.4741 * (sensor_0 + sensor_1) * 0.5 + 15);
-    Serial.println(" ");
-    Serial.println(sensor_2 * 2.2971 + 150);
+    Serial.print(0.4741 * (sensor_0 + sensor_1) * 0.5 + 15);
+    Serial.print(" ");
+    Serial.print(sensor_2 * 2.2971 + 150);
+    Serial.print(" ");
   }
 }
 
@@ -202,28 +203,29 @@ void move_lat() {
 }
 
 void move_long() {
-  int dif = desired_pos_adc - current_pos_long;
   int desired;
+  int dif = desired_pos_adc - current_pos_long;
   if(dif > 55) { // AGV pos < desired
-    desired = desired_pos_adc - 55;
+    desired = desired_pos_adc - 20;
   }
   else if(dif > 30 && dif <= 55) { // AGV pos < desired
-    desired = desired_pos_adc - 30;
+    desired = desired_pos_adc - 15;
     group = 1;
   }
   else if (dif < -30 && dif >= -55) { // AGV pos > desired
-    desired = desired_pos_adc + 30;
+    desired = desired_pos_adc + 15;
     group = 1;
   }
   else if (dif < -55) { // AGV pos < desired
-    desired = desired_pos_adc + 55;
+    desired = desired_pos_adc + 20;
   }
   else {
     desired = current_pos_long;
   }
 
+
   if(abs(current_pos_long - desired) > 5) {
-    if (current_pos_long > desired_pos_long) {
+    if (current_pos_long > desired) {
       for (int j = 0; j < group; j++) {
         for (int i = 0; i < 11; i++) rs485.write(fwd[i]);
       }
