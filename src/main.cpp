@@ -69,7 +69,7 @@ void setup() {
   Serial1.begin(9600);
   while (!Serial);
   Serial.println();
-  Timer1.initialize(50000); //50 millseconds
+  Timer1.initialize(50000); // 50 millseconds
   Timer1.attachInterrupt(callbackCommand);
 }
 
@@ -128,11 +128,21 @@ void setCommand(int incomingByte, char* num = nullptr) {
   } else if (incomingByte == 77 || incomingByte == 109) { // 'M' or 'm' for alignmnent
     alg = true;
   } else if (incomingByte == 67 || incomingByte == 99) {  // 'C(number)' or 'c' for move side TOF
-    if(num == nullptr) return;
+    for(int i = 0; i < 3; i++) {
+      // check if the number is valid
+      if (num[i] < '0' || num[i] > '9') {
+          return;
+        }
+    }
     desired_pos_lat = current_pos_lat + atoi(num);
     mv_lat = true;
   } else if (incomingByte == 78 || incomingByte == 110) { // 'N(number)' or 'n' for adjusting longitudinal position ULTRASONIC
-    if(num == nullptr) return;
+    for(int i = 0; i < 3; i++) {
+      // check if the number is valid
+      if (num[i] < '0' || num[i] > '9') {
+          return;
+        }
+    }
     desired_pos_long = atoi(num);
     desired_pos_adc = (desired_pos_long - 15) / 0.474;
     mv_long = true;
