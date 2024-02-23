@@ -78,15 +78,8 @@ void loop() {
     if (incomingByte == 'N' || incomingByte == 'n' || incomingByte == 'C' || incomingByte == 'c') {
       int num_chars = 0;
       char* num; 
-      while (num_chars < 3 && Serial.available() > 0) {
-        char c = Serial.read();
-        if (c != '\n' && c != '\r') { 
-          num[num_chars++] = c;
-      }
-    }
-    if (num_chars > 0) num[num_chars] = '\0';
-      // Serial.readBytes(num,4);
-      // num[3] = '\0';
+      Serial.readBytes(num,4);
+      num[3] = '\0';
       setCommand(incomingByte, num);
     } else {
       setCommand(incomingByte);
