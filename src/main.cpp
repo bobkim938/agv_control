@@ -92,10 +92,10 @@ void callbackCommand() {
   sensor_2 = analogRead(tof);
   current_pos_lat = sensor_2 * 2.297 + 150;
   current_pos_long = ((sensor_0 + sensor_1) * 0.5);
-  Serial.println(sensor_0);
-  Serial.println(sensor_1);
-  Serial.println(sensor_2);
-  Serial.println("");
+  // Serial.println(sensor_0);
+  // Serial.println(sensor_1);
+  // Serial.println(sensor_2);
+  // Serial.println("");
 
   if (alg) align();
   else if (mv_lat) move_lat();
@@ -145,6 +145,10 @@ void setCommand(int incomingByte, char* num = nullptr) {
     desired_pos_long = atoi(num);
     desired_pos_adc = (desired_pos_long - 15) / 0.474;
     mv_long = true;
+  } else if (incomingByte == 80 || incomingByte == 112) { // 'P' or 'p' for sending sensor data
+    Serial.println(0.4741 * (sensor_0 + sensor_1) * 0.5 + 15);
+    Serial.println(" ");
+    Serial.println(sensor_2 * 2.2971 + 150);
   }
 }
 
@@ -200,19 +204,19 @@ void move_lat() {
 void move_long() {
   int dif = desired_pos_adc - current_pos_long;
   int desired;
-  if(dif > 55) {
-    desired = desired_pos_adc+ 55;
+  if(dif > 55) { // AGV pos < desired
+    desired = desired_pos_adc - 55;
   }
-  else if(dif > 30 && dif <= 55) {
-    desired = desired_pos_adc + 30;
-    group = 1;
-  }
-  else if (dif < -30 && dif >= -55) {
+  else if(dif > 30 && dif <= 55) { // AGV pos < desired
     desired = desired_pos_adc - 30;
     group = 1;
   }
-  else if (dif < -55) {
-    desired = desired_pos_adc - 55;
+  else if (dif < -30 && dif >= -55) { // AGV pos > desired
+    desired = desired_pos_adc + 30;
+    group = 1;
+  }
+  else if (dif < -55) { // AGV pos < desired
+    desired = desired_pos_adc + 55;
   }
   else {
     desired = current_pos_long;
