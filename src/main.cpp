@@ -50,8 +50,8 @@ byte fwd[11]    = {0x01, 0x06, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x97, 0
 byte bkwd[11]   = {0x01, 0x06, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xA4, 0x8A};
 byte ccw[11]    = {0x01, 0x06, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xC2, 0x8A};
 byte cw[11]     = {0x01, 0x06, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0E, 0x8A};
-byte slow[11]   = {0x01, 0x06, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x96, 0x8B};
-byte fast[11]   = {0x01, 0x06, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xA6, 0x88};
+byte slow[11]   = {0x01, 0x06, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xA6, 0x88};
+byte fast[11]   = {0x01, 0x06, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x96, 0x8B};
 byte left[11]   = {0x01, 0x06, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x76, 0x8A};
 byte right[11]  = {0x01, 0x06, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0xFE, 0x8A};
 
@@ -75,20 +75,21 @@ void setup() {
 void loop() {
   if (Serial.available() > 0) {
     int incomingByte = Serial.read();
-    if (incomingByte == 'N' || incomingByte == 'n' || incomingByte == 'C' || incomingByte == 'c') {
+    if (incomingByte == 'C' || incomingByte == 'c') {
+      char num[5]; 
+      Serial.readBytes(num,5);
+      num[4] = '\0';
+      setCommand(incomingByte, atoi(num));
+    } 
+    else if (incomingByte == 'N' || incomingByte == 'n') {
       char num[4]; 
       Serial.readBytes(num,4);
       num[3] = '\0';
-      for(int i = 0; i < 3; i++) {
-        // check if the num is valid
-        if (num[i] < '0' || num[i] > '9') {
-            return;
-          }
-      }
       setCommand(incomingByte, atoi(num));
-  } else {
-    setCommand(incomingByte);
     }
+    else {
+      setCommand(incomingByte);
+      }
   }
 }
 
@@ -134,9 +135,11 @@ void setCommand(int incomingByte, int num = 0) {
     alg = true;
   } else if (incomingByte == 67 || incomingByte == 99) {  // 'C(number)' or 'c' for move side TOF
     desired_pos_lat = current_pos_lat + num;
+    Serial.println(desired_pos_lat);
     mv_lat = true;
   } else if (incomingByte == 78 || incomingByte == 110) { // 'N(number)' or 'n' for adjusting longitudinal position ULTRASONIC
     desired_pos_long = num;
+    Serial.println(desired_pos_long);
     desired_pos_adc = (desired_pos_long - 15) / 0.474;
     mv_long = true;
   } else if (incomingByte == 80 || incomingByte == 112) { // 'P' or 'p' for sending sensor data
