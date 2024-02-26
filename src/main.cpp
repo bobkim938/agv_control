@@ -56,7 +56,7 @@ byte left[11]   = {0x01, 0x06, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x76, 0
 byte right[11]  = {0x01, 0x06, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0xFE, 0x8A};
 
 void callbackCommand();
-void setCommand(int incomingByte, char* num = nullptr);
+void setCommand(int incomingByte, int num = 0);
 void align(); // angular adjustment
 void move_lat();  // lateral motion
 void move_long(); // longitudinal motion
@@ -76,13 +76,18 @@ void loop() {
   if (Serial.available() > 0) {
     int incomingByte = Serial.read();
     if (incomingByte == 'N' || incomingByte == 'n' || incomingByte == 'C' || incomingByte == 'c') {
-      int num_chars = 0;
-      char* num; 
+      char num[4]; 
       Serial.readBytes(num,4);
       num[3] = '\0';
-      setCommand(incomingByte, num);
-    } else {
-      setCommand(incomingByte);
+      for(int i = 0; i < 3; i++) {
+        // check if the num is valid
+        if (num[i] < '0' || num[i] > '9') {
+            return;
+          }
+      }
+      setCommand(incomingByte, atoi(num));
+  } else {
+    setCommand(incomingByte);
     }
   }
 }
@@ -106,7 +111,7 @@ void callbackCommand() {
   }
 }
 
-void setCommand(int incomingByte, char* num = nullptr) {
+void setCommand(int incomingByte, int num = 0) {
   if (incomingByte == 32) { // space
     commandState = 0;
   } else if ((incomingByte == 87) || (incomingByte == 119)) { // W or w(forward)
@@ -128,22 +133,10 @@ void setCommand(int incomingByte, char* num = nullptr) {
   } else if (incomingByte == 77 || incomingByte == 109) { // 'M' or 'm' for alignmnent
     alg = true;
   } else if (incomingByte == 67 || incomingByte == 99) {  // 'C(number)' or 'c' for move side TOF
-    for(int i = 0; i < 3; i++) {
-      // check if the num is valid
-      if (num[i] < '0' || num[i] > '9') {
-          return;
-        }
-    }
-    desired_pos_lat = current_pos_lat + atoi(num);
+    desired_pos_lat = current_pos_lat + num;
     mv_lat = true;
   } else if (incomingByte == 78 || incomingByte == 110) { // 'N(number)' or 'n' for adjusting longitudinal position ULTRASONIC
-    for(int i = 0; i < 3; i++) {
-      // check if the num is valid
-      if (num[i] < '0' || num[i] > '9') {
-          return;
-        }
-    }
-    desired_pos_long = atoi(num);
+    desired_pos_long = num;
     desired_pos_adc = (desired_pos_long - 15) / 0.474;
     mv_long = true;
   } else if (incomingByte == 80 || incomingByte == 112) { // 'P' or 'p' for sending sensor data
