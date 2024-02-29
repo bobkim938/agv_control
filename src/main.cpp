@@ -67,7 +67,6 @@ void setup() {
   Serial.begin(115200);
   Serial1.begin(9600);
   while (!Serial);
-  Serial.println();
   Timer1.initialize(50000); // 50 millseconds
   Timer1.attachInterrupt(callbackCommand);
 }
@@ -110,11 +109,21 @@ void callbackCommand() {
   // Serial.println(sensor_2);
   // Serial.println("");
 
-  if (alg) align();
-  else if (mv_lat) move_lat();
-  else if (mv_long) move_long();
+  if (alg) {
+    align();
+    Serial.print('M');
+  }
+  else if (mv_lat) {
+    move_lat();
+    Serial.print('M');
+  }
+  else if (mv_long) {
+    move_long();
+    Serial.print('M');
+  }
   else {
     manual();
+    Serial.print('I');
   }
 }
 
@@ -141,11 +150,11 @@ void setCommand(int incomingByte, int num = 0) {
     alg = true;
   } else if (incomingByte == 67 || incomingByte == 99) {  // 'C(number)' or 'c' for move side TOF
     desired_pos_lat = current_pos_lat + num;
-    Serial.println(desired_pos_lat);
+    // Serial.println(desired_pos_lat);
     mv_lat = true;
   } else if (incomingByte == 78 || incomingByte == 110) { // 'N(number)' or 'n' for adjusting longitudinal position ULTRASONIC
     desired_pos_long = num;
-    Serial.println(desired_pos_long);
+    // Serial.println(desired_pos_long);
     desired_pos_adc = (desired_pos_long - 15) / 0.474;
     mv_long = true;
   } else if (incomingByte == 80 || incomingByte == 112) { // 'P' or 'p' for sending sensor data
