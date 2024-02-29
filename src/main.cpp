@@ -77,12 +77,18 @@ void loop() {
     int incomingByte = Serial.read();
     if (incomingByte == 'C' || incomingByte == 'c') {
       char num[5]; 
+      for(int i = 0; i < 5; i++) {
+        num[i] = 0;
+      }
       Serial.readBytes(num,5);
       num[4] = '\0';
       setCommand(incomingByte, atoi(num));
     } 
     else if (incomingByte == 'N' || incomingByte == 'n') {
       char num[4]; 
+      for(int i = 0; i < 4; i++) {
+        num[i] = 0;
+      }
       Serial.readBytes(num,4);
       num[3] = '\0';
       setCommand(incomingByte, atoi(num));
