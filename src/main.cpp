@@ -1,6 +1,4 @@
-#include <RS485.h>
-#include <TimerOne.h>
-#include <Arduino.h>
+#include "calibration.h"
 
 #define sonic_0 A0
 #define sonic_1 A1
@@ -15,6 +13,7 @@ const uint8_t Kp = 12;
 const uint8_t Ki = 0;
 const uint8_t Kd = 5;
 int P, I, D, prev_e = 0;
+int I_lat, D_lat, prev_e_lat = 0;
 float sample_t = 0.05;
 int tau = 2;
 int cnt_alg = 0;
@@ -74,16 +73,7 @@ void setup() {
 void loop() {
   if (Serial.available() > 0) {
     int incomingByte = Serial.read();
-    if (incomingByte == 'C' || incomingByte == 'c') {
-      char num[5]; 
-      for(int i = 0; i < 5; i++) {
-        num[i] = 0;
-      }
-      Serial.readBytes(num,5);
-      num[4] = '\0';
-      setCommand(incomingByte, atoi(num));
-    } 
-    else if (incomingByte == 'N' || incomingByte == 'n') {
+    if (incomingByte == 'N' || incomingByte == 'n') {
       char num[4]; 
       for(int i = 0; i < 4; i++) {
         num[i] = 0;
@@ -111,19 +101,15 @@ void callbackCommand() {
 
   if (alg) {
     align();
-    Serial.print('M');
   }
   else if (mv_lat) {
     move_lat();
-    Serial.print('M');
   }
   else if (mv_long) {
     move_long();
-    Serial.print('M');
   }
   else {
     manual();
-    Serial.print('I');
   }
 }
 
@@ -149,7 +135,7 @@ void setCommand(int incomingByte, int num = 0) {
   } else if (incomingByte == 77 || incomingByte == 109) { // 'M' or 'm' for alignmnent
     alg = true;
   } else if (incomingByte == 67 || incomingByte == 99) {  // 'C(number)' or 'c' for move side TOF
-    desired_pos_lat = current_pos_lat + num;
+    desired_pos_lat = current_pos_lat + 500;
     // Serial.println(desired_pos_lat);
     mv_lat = true;
   } else if (incomingByte == 78 || incomingByte == 110) { // 'N(number)' or 'n' for adjusting longitudinal position ULTRASONIC
@@ -197,19 +183,40 @@ void align() {
     group = 2;
   }
 }
-
 void move_lat() {
   if (abs(current_pos_lat - desired_pos_lat) <= 5) {
     mv_lat = false;
-  }
-  else if (current_pos_lat > desired_pos_lat) {
-    for (int j = 0; j < group; j++) {
-      for (int i = 0; i < 11; i++) rs485.write(left[i]);
-    }
-  }
-  else if (current_pos_lat < desired_pos_lat) {
-    for (int j = 0; j < group; j++) {
-      for (int i = 0; i < 11; i++) rs485.write(right[i]);
+  } else {
+    // Calculate error
+    int error = desired_pos_lat - current_pos_lat;
+
+    // Calculate PID terms
+    int P_lat = 5 * error;  // Kp = 5
+    I_lat += 0 * sample_t * (error + prev_e_lat) * 0.5; // Ki = 0
+    D_lat = ((2 * 0) / (sample_t + 2 * tau)) * (error - prev_e_lat) - (
+          (sample_t - 2 * tau) / (sample_t + 2 * tau)) * D_lat;  // Kd = 0
+
+    // Update previous error
+    prev_e_lat = error;
+
+    // Calculate control output
+    int control_output = P_lat + I_lat + D_lat;
+
+    // Anti-windup (optional)
+    if (control_output > 500) control_output = 500;
+    else if (control_output < -500) control_output = -500;
+
+    // Determine movement direction and send command
+    if (control_output > 0) {
+      // Send right command based on control output (e.g., adjust speed)
+      for (int j = 0; j < control_output / 100; j++) {
+        for (int i = 0; i < 11; i++) rs485.write(right[i]);
+      }
+    } else if (control_output < 0) {
+      // Send left command based on control output (e.g., adjust speed)
+      for (int j = 0; j < abs(control_output) / 100; j++) {
+        for (int i = 0; i < 11; i++) rs485.write(left[i]);
+      }
     }
   }
 }
@@ -234,7 +241,6 @@ void move_long() {
   else {
     desired = current_pos_long;
   }
-
 
   if(abs(current_pos_long - desired) > 5) {
     if (current_pos_long > desired) {
