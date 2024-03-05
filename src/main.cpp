@@ -6,6 +6,7 @@
 #define R_usonic A0
 #define L_usonic A1
 #define L_TOF A2
+#define group 2
 
 const uint8_t sendPin  = 8;
 const uint8_t deviceID = 0;
@@ -27,6 +28,7 @@ int cmd_state = 0;
 unsigned long last_cmd_time = 0;
 
 float current_lat_speed = 0.1; // max: 0.1, min = 0.02
+float speed_table[10] = {0.1, 0.091, 0.0822, 0.0733, 0.0644, 0.0555, 0.0466, 0.0377, 0.0288, 0.0199};
 float lat_pos = 0;
 float desired_lat_pos = 0;
 
@@ -44,6 +46,8 @@ float prev_e = 0;;
 void cntrl();
 void cntrl_speed();
 void set_cmd(int incomingByte);
+void manual();
+int search_index(float val, float arr[], int n);
 
 void setup() {
   Serial.begin(115200);
@@ -71,10 +75,32 @@ void cntrl(){
   int L_TOF_val = analogRead(L_TOF);
   lat_pos = L_TOF_val * (2350/1023) + 150; // current lateral pos from the left wall in mm
   if(lateral_mode) {
-    if (abs(desired_lat_pos - lat_pos) <= 5) {
-      lateral_mode = false;
+    float error = desired_lat_pos - lat_pos;
+    P = Kp * error;
+    I += Ki * sample_t * error;
+    D = (2 * Kd / (sample_t + 2 * tau)) * (error - prev_e) - ((sample_t - 2 * tau) / (sample_t + 2 * tau)) * D;
+    prev_e = error;
+    float output = P + I + D;
+
+    if (I > 300) I = 300;
+    else if (I < -300) I = -300;
+
+    if (output > 1500) output = 1500;
+    else if (output < -1500) output = -1500;
+
+    current_lat_speed = 0.1 * output / 1500;
+    int speed_index = search_index(current_lat_speed, speed_table, 10);
+    for(int i = 0; i < speed_index * 2; i++) {
+      for (int j = 0; j < 11; j++) rs485.write(slow[j]);
     }
-    if(lat_pos > desired_lat_pos) {
+
+    if (abs(error) <= 5 && abs(output) <= 10) { // stop condition
+      lateral_mode = false;
+      I = 0;
+      D = 0;
+    }
+
+    else if(lat_pos > desired_lat_pos) {
       for (int j = 0; j < 2; j++) {
         for (int i = 0; i < 11; i++) rs485.write(left[i]);
       }
@@ -85,6 +111,7 @@ void cntrl(){
       }
     }
   } 
+  else manual();
 }
 
 void set_cmd(int incomingByte) {
@@ -115,33 +142,83 @@ void set_cmd(int incomingByte) {
   }
 }
 
-void cntrl_speed() {
-  static unsigned long last_cmd_time = 0;  // Time of last command sent
+void manual() {
+  switch (cmd_state) {
+    case 0: // idle
+      for (int i = 0; i < 11; i++) rs485.write(idle[i]);
+      break;
 
-  // Calculate PID output and desired speed change
-  float error = desired_lat_pos - lat_pos;
-  P = Kp * error;
-  I += Ki * sample_t * error;
-  D = (2 * Kd / (sample_t + 2 * tau)) * (error - prev_e) - ((sample_t - 2 * tau) / (sample_t + 2 * tau)) * D;
-  prev_e = error;
+    case 1: // fwd
+      for (int j = 0; j < group; j++) {
+        for (int i = 0; i < 11; i++) rs485.write(fwd[i]);
+      }
+      cmd_state = 0;
+      break;
 
-  // Normalize desired speed change to range [-1, 1] based on min and max speeds
-  float normalized_speed_change = (P + I + D) / (0.1 - 0.02);  // Adjust the denominator based on your min and max speed values
+    case 2: // bkwd
+      for (int j = 0; j < group; j++) {
+        for (int i = 0; i < 11; i++) rs485.write(bkwd[i]);
+      }
+      cmd_state = 0;
+      break;
 
-  // Constrain normalized speed change to [-1, 1]
-  normalized_speed_change = constrain(normalized_speed_change, -1.0, 1.0);
+    case 3: // ccw
+      for (int j = 0; j < group; j++) {
+        for (int i = 0; i < 11; i++) rs485.write(ccw[i]);
+      }
+      cmd_state = 0;
+      break;
 
-  // Convert normalized speed change to speed steps (0 to 10)
-  int speed_steps = abs(round(normalized_speed_change * 10));  // Scale by 10 for 0-10 steps
+    case 4: // cw
+      for (int j = 0; j < group; j++) {
+        for (int i = 0; i < 11; i++) rs485.write(cw[i]);
+      }
+      cmd_state = 0;
+      break;
 
-  // Send commands based on desired speed change and timing
-  if (millis() - last_cmd_time >= 20) {  // Check if 20ms have passed since last command
-    if (normalized_speed_change > 0) {
-      rs485.write(fast, sizeof(fast));  // Send "fast" for 20ms
-      last_cmd_time = millis();  // Update last command time
-    } else if (normalized_speed_change < 0) {
-      rs485.write(slow, sizeof(slow));  // Send "slow" for 20ms
-      last_cmd_time = millis();  // Update last command time
-    }
+    case 5: // slower
+      for (int j = 0; j < group; j++) {
+        for (int i = 0; i < 11; i++) rs485.write(slow[i]);
+      }
+      cmd_state = 0;
+      break;
+
+    case 6: // faster
+      for (int j = 0; j < group; j++) {
+        for (int i = 0; i < 11; i++) rs485.write(fast[i]);
+      }
+      cmd_state = 0;
+      break;
+
+    case 7: // left
+      for (int j = 0; j < group; j++) {
+        for (int i = 0; i < 11; i++) rs485.write(left[i]);
+      }
+      cmd_state = 0;
+      break;
+
+    case 8: // right
+      for (int j = 0; j < group; j++) {
+        for (int i = 0; i < 11; i++) rs485.write(right[i]);
+      }
+      cmd_state = 0;
+      break;  
+
+    default:
+      break;
   }
 }
+
+int search_index(float val, float arr[], int n) {
+  // searching for val with the closest value in the speed_table
+  int index = 0;
+  float min_diff = abs(val - arr[0]);
+  for (int i = 1; i < n; i++) {
+    if (abs(val - arr[i]) < min_diff) {
+      min_diff = abs(val - arr[i]);
+      index = i;
+    }
+  }
+  return index;
+}
+
