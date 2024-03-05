@@ -33,7 +33,7 @@ float desired_lat_pos = 0;
  
 bool lateral_mode = false;
  
-// PID parameters
+// PID parameters for lateral control
 float P, I, D;
 float Kp = 5.0;
 float Ki = 1.0;
@@ -45,6 +45,7 @@ float prev_e = 0;;
 void cntrl();
 void set_cmd(int incomingByte);
 void manual();
+void lateral_500();
 int search_index(float val, float arr[], int n);
  
 void setup() {
@@ -79,50 +80,7 @@ void cntrl(){
   lat_pos_avg[4] = lat_pos;
   filtered_lat_pos = (lat_pos_avg[0] + lat_pos_avg[1] + lat_pos_avg[2] + lat_pos_avg[3] + lat_pos_avg[4]) / 5;
 
-  if(lateral_mode) {
-    Serial.println(filtered_lat_pos);
-    float error = desired_lat_pos - lat_pos;
-    P = Kp * error;
-    I += Ki * sample_t * error;
-    D = (2 * Kd / (sample_t + 2 * tau)) * (error - prev_e) - ((sample_t - 2 * tau) / (sample_t + 2 * tau)) * D;
-    prev_e = error;
-    float output = P + I + D;
-    Serial.println(output);
- 
-    if (I > 300) I = 300;
-    else if (I < -300) I = -300;
- 
-    if (output > 1500) output = 1500;
-    else if (output < -1500) output = -1500;
- 
-    current_lat_speed = 0.1 * output / 1500;
-    Serial.println(current_lat_speed);
-    int speed_index = search_index(current_lat_speed, speed_table, 10);
-    Serial.println(speed_index);
-    for(int i = 0; i < speed_index * 2; i++) {
-      for (int j = 0; j < 11; j++) rs485.write(slow[j]);
-    }
- 
-    if (output <= 150 && output >= 0 && abs(error) <= 5) { // stop condition
-      lateral_mode = false;
-      I = 0;
-      D = 0;
-      for(int i = 0; i < 20; i++) {
-        for (int j = 0; j < 11; j++) rs485.write(fast[j]);
-    }
-    }
- 
-    else if(lat_pos > desired_lat_pos) {
-      for (int j = 0; j < 1; j++) {
-        for (int i = 0; i < 11; i++) rs485.write(left[i]);
-      }
-    }
-    else if (lat_pos < desired_lat_pos) {
-      for (int j = 0; j < 1; j++) {
-        for (int i = 0; i < 11; i++) rs485.write(right[i]);
-      }
-    }
-  } 
+  if(lateral_mode) lateral_500();
   else manual();
 }
  
@@ -216,6 +174,51 @@ void manual() {
     default:
       break;
   }
+}
+
+void lateral_500() {
+  Serial.println(filtered_lat_pos);
+    float error = desired_lat_pos - lat_pos;
+    P = Kp * error;
+    I += Ki * sample_t * error;
+    D = (2 * Kd / (sample_t + 2 * tau)) * (error - prev_e) - ((sample_t - 2 * tau) / (sample_t + 2 * tau)) * D;
+    prev_e = error;
+    float output = P + I + D;
+    Serial.println(output);
+ 
+    if (I > 300) I = 300;
+    else if (I < -300) I = -300;
+ 
+    if (output > 1500) output = 1500;
+    else if (output < -1500) output = -1500;
+ 
+    current_lat_speed = 0.1 * output / 1500;
+    Serial.println(current_lat_speed);
+    int speed_index = search_index(current_lat_speed, speed_table, 10);
+    Serial.println(speed_index);
+    for(int i = 0; i < speed_index * 2; i++) {
+      for (int j = 0; j < 11; j++) rs485.write(slow[j]);
+    }
+ 
+    if (output <= 150 && output >= 0 && abs(error) <= 5) { // stop condition
+      lateral_mode = false;
+      I = 0;
+      D = 0;
+      for(int i = 0; i < 20; i++) {
+        for (int j = 0; j < 11; j++) rs485.write(fast[j]);
+    }
+    }
+ 
+    else if(lat_pos > desired_lat_pos) {
+      for (int j = 0; j < 1; j++) {
+        for (int i = 0; i < 11; i++) rs485.write(left[i]);
+      }
+    }
+    else if (lat_pos < desired_lat_pos) {
+      for (int j = 0; j < 1; j++) {
+        for (int i = 0; i < 11; i++) rs485.write(right[i]);
+      }
+    }
 }
  
 int search_index(float val, float arr[], int n) {
