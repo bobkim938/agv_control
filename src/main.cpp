@@ -5,7 +5,6 @@
 #define R_usonic A0
 #define L_usonic A1
 #define L_TOF A2
-#define group 2
  
 const uint8_t sendPin  = 8;
 const uint8_t deviceID = 0;
@@ -21,18 +20,16 @@ byte fast[11]   = {0x01, 0x06, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x96, 0
 byte left[11]   = {0x01, 0x06, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x76, 0x8A};
 byte right[11]  = {0x01, 0x06, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0xFE, 0x8A};
  
-int cnt = 0; // interrupt counter to control speed
 int cmd_state = 0;
-unsigned long last_cmd_time = 0;
- 
+ int group = 2;
+
+ // lateral motion control parameters
+int L_TOF_val = 0;
 float current_lat_speed = 0.1; // max: 0.1, min = 0.02
-float speed_table[10] = {0.1, 0.091, 0.0822, 0.0733, 0.0644, 0.0555, 0.0466, 0.0377, 0.0288, 0.0199};
+float speed_table[10] = {0.1, 0.091, 0.0822, 0.0733, 0.0644, 0.0555, 0.0466, 0.0377, 0.0288, 0.0199}; // speed table for lateral control
 float lat_pos = 0;
 float filtered_lat_pos = 0;
 float desired_lat_pos = 0;
- 
-bool lateral_mode = false;
- 
 // PID parameters for lateral control
 float P, I, D;
 float Kp = 5.0;
@@ -40,12 +37,27 @@ float Ki = 1.0;
 float Kd = 2.0;
 float tau = 0.5;
 float sample_t = 0.05;
-float prev_e = 0;;
+float prev_e = 0;
+bool lateral_mode = false;
+ 
+// alignment parameters
+int R_usonic_val = 0;
+int L_usonic_val = 0;
+bool alg = false;
+unsigned long alg_timeout; // alignment timeout (10 seconds)
+int cnt_alg = 0; // alignment counter
+int P_alg, I_alg, D_alg;
+int Kp_alg = 12;
+int Ki_alg = 0;
+int Kd_alg = 5;
+int prev_e_alg = 0;
+
  
 void cntrl();
 void set_cmd(int incomingByte);
 void manual();
-void lateral_500();
+void lateral_500(); // lateral control for moving 500 mm to the right
+void align(); // angular adjustment
 int search_index(float val, float arr[], int n);
  
 void setup() {
@@ -69,9 +81,9 @@ void loop() {
 }
  
 void cntrl(){
-  int R_usonic_val = analogRead(R_usonic);
-  int L_usonic_val = analogRead(L_usonic);
-  int L_TOF_val = analogRead(L_TOF);
+  R_usonic_val = analogRead(R_usonic);
+  L_usonic_val = analogRead(L_usonic);
+  L_TOF_val = analogRead(L_TOF);
   lat_pos = L_TOF_val * (2350.0/1023) + 150.0; // current lateral pos from the left wall in mm 
 
   // moving average with 5 samples of lat_pos
@@ -81,6 +93,7 @@ void cntrl(){
   filtered_lat_pos = (lat_pos_avg[0] + lat_pos_avg[1] + lat_pos_avg[2] + lat_pos_avg[3] + lat_pos_avg[4]) / 5;
 
   if(lateral_mode) lateral_500();
+  else if(alg) align();
   else manual();
 }
  
@@ -103,6 +116,8 @@ void set_cmd(int incomingByte) {
     cmd_state = 7;
   } else if ((incomingByte == 68) || (incomingByte == 100)) { // D or d (move right)
     cmd_state = 8;
+  } else if (incomingByte == 77 || incomingByte == 109) { // 'M' or 'm' for alignmnent
+    alg = true;
   } else if(incomingByte == 'P' || incomingByte == 'p') {
      Serial.println(filtered_lat_pos);
      cmd_state = 0;
@@ -219,6 +234,53 @@ void lateral_500() {
         for (int i = 0; i < 11; i++) rs485.write(right[i]);
       }
     }
+}
+
+void align() {
+  alg_timeout = millis();
+  if (abs(R_usonic - L_usonic) >= 6) {
+      int err = abs(R_usonic - L_usonic);
+      P_alg = Kp_alg * err;
+      I_alg += Ki_alg * sample_t * (err + prev_e_alg) * 0.5;
+      D_alg = ((2 * Kd_alg) / (sample_t + 2 * tau)) * (err - prev_e_alg) - (
+            (sample_t - 2 * tau) / (sample_t + 2 * tau)) * D_alg;
+
+      prev_e_alg = err;
+      int PID = P_alg + I_alg + D_alg;
+
+      // anti-windup
+      if (PID > 500) PID = 500;
+      else if (PID < 0) PID = abs(PID);
+
+      group = PID/100;
+
+      if (R_usonic > L_usonic) {
+          for (int j = 0; j < group; j++) {
+            for (int i = 0; i < 11; i++) rs485.write(ccw[i]);
+        }
+        for (int i = 0; i < 11; i++) rs485.write(idle[i]);
+      }
+      else if (R_usonic < L_usonic) {
+        for (int j = 0; j < group; j++) {
+          for (int i = 0; i < 11; i++) rs485.write(cw[i]);
+        }
+        for (int i = 0; i < 11; i++) rs485.write(idle[i]);
+      }
+    }
+  else {
+    ++cnt_alg;
+  }
+
+  if (cnt_alg >= 20 && abs(R_usonic - L_usonic) <= 6) {
+    alg = false;
+    cnt_alg = 0;
+    group = 2;
+  }
+  else if (millis() - alg_timeout > 10000 && abs(R_usonic - L_usonic) <= 10) {
+    alg = false;
+    cnt_alg = 0;
+    group = 2;
+  }
 }
  
 int search_index(float val, float arr[], int n) {
