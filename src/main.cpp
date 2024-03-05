@@ -275,11 +275,15 @@ void align() {
     alg = false;
     cnt_alg = 0;
     group = 2;
+    I_alg = 0;
+    D_alg = 0;
   }
   else if (millis() - alg_timeout > 10000 && abs(R_usonic - L_usonic) <= 10) {
     alg = false;
     cnt_alg = 0;
     group = 2;
+    I_alg = 0;
+    D_alg = 0;
   }
 }
  
