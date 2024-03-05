@@ -57,11 +57,11 @@ void setup() {
 void loop() {
   if(Serial.available() > 0){
     int incomingByte = Serial.read();
-    if(incomingByte == 'c') {
+    if(incomingByte == 'C' || incomingByte == 'c') {
       lateral_mode = true;
       desired_lat_pos = lat_pos + 500; // target set to move 500 mm to the right
     }
-    set_cmd(incomingByte);
+    else set_cmd(incomingByte);
   }
 }
 
@@ -111,31 +111,25 @@ void cntrl(){
 }
 
 void set_cmd(int incomingByte) {
-  switch (incomingByte) {
-    case 119: // w, fwd
-      cmd_state = 1;
-      break;
-    
-    case 115: // s, bkwd
-      cmd_state = 2;
-      break;
-
-    case 97: // a, left
-      cmd_state = 3;
-      break;
-
-    case 100: // d, right
-      cmd_state = 4;
-      break;
-
-    case 113: // q, ccw
-      cmd_state = 5;
-      break;
-
-    case 101: // e, cw  
-      cmd_state = 6;
-      break;
-  }
+  if (incomingByte == 32) { // space
+    cmd_state = 0;
+  } else if ((incomingByte == 87) || (incomingByte == 119)) { // W or w(forward)
+    cmd_state = 1;
+  } else if ((incomingByte == 83) || (incomingByte == 115)) { // S or s(backward)
+    cmd_state = 2;
+  } else if ((incomingByte == 81) || (incomingByte == 113)) { // Q or q(ccw)
+    cmd_state = 3;
+  } else if ((incomingByte == 69) || (incomingByte == 101)) { // E or e (cw)
+    cmd_state = 4;
+  } else if (incomingByte == 45) { // -(slower)
+    cmd_state = 5;
+  } else if (incomingByte == 43) { // +(faster)
+    cmd_state = 6;
+  } else if ((incomingByte == 65) || (incomingByte == 97)) { // A or a (move left)
+    cmd_state = 7;
+  } else if ((incomingByte == 68) || (incomingByte == 100)) { // D or d (move right)
+    cmd_state = 8;
+  } 
 }
 
 void manual() {
