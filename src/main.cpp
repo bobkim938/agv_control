@@ -28,6 +28,7 @@ unsigned long last_cmd_time = 0;
 float current_lat_speed = 0.1; // max: 0.1, min = 0.02
 float speed_table[10] = {0.1, 0.091, 0.0822, 0.0733, 0.0644, 0.0555, 0.0466, 0.0377, 0.0288, 0.0199};
 float lat_pos = 0;
+float filtered_lat_pos = 0;
 float desired_lat_pos = 0;
  
 bool lateral_mode = false;
@@ -70,9 +71,16 @@ void cntrl(){
   int R_usonic_val = analogRead(R_usonic);
   int L_usonic_val = analogRead(L_usonic);
   int L_TOF_val = analogRead(L_TOF);
-  lat_pos = L_TOF_val * (2350.0/1023) + 150.0; // current lateral pos from the left wall in mm
+  lat_pos = L_TOF_val * (2350.0/1023) + 150.0; // current lateral pos from the left wall in mm 
+
+  // moving average with 5 samples of lat_pos
+  static float lat_pos_avg[5] = {0, 0, 0, 0, 0};
+  for(int i = 0; i < 4; i++) lat_pos_avg[i] = lat_pos_avg[i+1];
+  lat_pos_avg[4] = lat_pos;
+  filtered_lat_pos = (lat_pos_avg[0] + lat_pos_avg[1] + lat_pos_avg[2] + lat_pos_avg[3] + lat_pos_avg[4]) / 5;
+
   if(lateral_mode) {
-    Serial.println(lat_pos);
+    Serial.println(filtered_lat_pos);
     float error = desired_lat_pos - lat_pos;
     P = Kp * error;
     I += Ki * sample_t * error;
@@ -138,7 +146,7 @@ void set_cmd(int incomingByte) {
   } else if ((incomingByte == 68) || (incomingByte == 100)) { // D or d (move right)
     cmd_state = 8;
   } else if(incomingByte == 'P' || incomingByte == 'p') {
-     Serial.println(lat_pos);
+     Serial.println(filtered_lat_pos);
      cmd_state = 0;
   }
 }
