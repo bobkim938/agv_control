@@ -99,8 +99,7 @@ void cntrl(){
   R_usonic_val = analogRead(R_usonic);
   L_usonic_val = analogRead(L_usonic);
   current_long_pos_adc = (R_usonic_val + L_usonic_val) * 0.5; // in ADC value
-  current_long_pos = (R_usonic_val + L_usonic_val) * 0.5 * (485.0/1023) + 15.0; // current distance from the wall in mm
- 
+  current_long_pos = current_long_pos_adc * (485.0/1023) + 15.0; // current distance from the wall in mm
  
   L_TOF_val = analogRead(L_TOF);
   lat_pos = L_TOF_val * (2350.0/1023) + 150.0; // current lateral pos from the left wall in mm
@@ -274,7 +273,6 @@ void longi_245() {
   else {
     desired = desired_long_pos_adc;
   }
- 
  
   if(abs(current_long_pos_adc - desired) > 5) {
     if (current_long_pos_adc > desired) {
