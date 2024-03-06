@@ -21,7 +21,7 @@ byte left[11]   = {0x01, 0x06, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x76, 0
 byte right[11]  = {0x01, 0x06, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0xFE, 0x8A};
  
 int cmd_state = 0;
- int group = 2;
+int group = 2;
  
  // lateral motion control parameters
 int L_TOF_val = 0;
@@ -58,7 +58,6 @@ bool longi_mode_bkwd = false; // setting distance to 345 mm
 int desired_long_pos_adc = 0;
 int current_long_pos_adc = 0;
 float current_long_pos;
- 
  
 void cntrl();
 void set_cmd(int incomingByte);
