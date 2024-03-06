@@ -10,7 +10,7 @@ const uint8_t sendPin  = 8;
 const uint8_t deviceID = 0;
 RS485 rs485(&Serial1, sendPin);  //uses default deviceID
  
-byte idle[11]   = {0x01, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x87, 0x4A}; 
+byte idle[11]   = {0x01, 0x06, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x87, 0x4A};
 byte fwd[11]    = {0x01, 0x06, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x97, 0x8A};
 byte bkwd[11]   = {0x01, 0x06, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xA4, 0x8A};
 byte ccw[11]    = {0x01, 0x06, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xC2, 0x8A};
@@ -22,7 +22,7 @@ byte right[11]  = {0x01, 0x06, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0xFE, 0
  
 int cmd_state = 0;
  int group = 2;
-
+ 
  // lateral motion control parameters
 int L_TOF_val = 0;
 float current_lat_speed = 0.1; // max: 0.1, min = 0.02
@@ -51,13 +51,14 @@ int Kp_alg = 12;
 int Ki_alg = 0;
 int Kd_alg = 5;
 int prev_e_alg = 0;
-
+ 
 // longitudinal motion control parameters
 bool longi_mode = false; // setting distance to 245 mm
 bool longi_mode_bkwd = false; // setting distance to 345 mm
 int desired_long_pos_adc = 0;
 int current_long_pos_adc = 0;
-
+float current_long_pos;
+ 
  
 void cntrl();
 void set_cmd(int incomingByte);
@@ -72,7 +73,7 @@ void setup() {
   Serial1.begin(9600);
   while (!Serial);
   Timer1.initialize(50000); // 50 millseconds
-  Timer1.attachInterrupt(cntrl); 
+  Timer1.attachInterrupt(cntrl);
 }
  
 void loop() {
@@ -80,7 +81,7 @@ void loop() {
     int incomingByte = Serial.read();
     if(incomingByte == 'C' || incomingByte == 'c') {
       lateral_mode = true;
-      desired_lat_pos = lat_pos + 500; // target set to move 500 mm to the right 
+      desired_lat_pos = lat_pos + 500; // target set to move 500 mm to the right
       Serial.println(desired_lat_pos);
     }
     else if(incomingByte == 'N' || incomingByte == 'n') {
@@ -99,18 +100,18 @@ void cntrl(){
   R_usonic_val = analogRead(R_usonic);
   L_usonic_val = analogRead(L_usonic);
   current_long_pos_adc = (R_usonic_val + L_usonic_val) * 0.5; // in ADC value
-  // float current_long_pos = (R_usonic_val + L_usonic_val) * 0.5 * (2350.0/1023) + 150.0; // current distance from the wall in mm
-
-
+  current_long_pos = (R_usonic_val + L_usonic_val) * 0.5 * (485.0/1023) + 15.0; // current distance from the wall in mm
+ 
+ 
   L_TOF_val = analogRead(L_TOF);
-  lat_pos = L_TOF_val * (2350.0/1023) + 150.0; // current lateral pos from the left wall in mm 
-
+  lat_pos = L_TOF_val * (2350.0/1023) + 150.0; // current lateral pos from the left wall in mm
+ 
   // moving average with 5 samples of lat_pos
   static float lat_pos_avg[5] = {0, 0, 0, 0, 0};
   for(int i = 0; i < 4; i++) lat_pos_avg[i] = lat_pos_avg[i+1];
   lat_pos_avg[4] = lat_pos;
   filtered_lat_pos = (lat_pos_avg[0] + lat_pos_avg[1] + lat_pos_avg[2] + lat_pos_avg[3] + lat_pos_avg[4]) / 5;
-
+ 
   if(lateral_mode) lateral_500();
   else if(alg) align();
   else if(longi_mode || longi_mode_bkwd) longi_245();
@@ -140,6 +141,7 @@ void set_cmd(int incomingByte) {
     alg = true;
   } else if(incomingByte == 'P' || incomingByte == 'p') {
      Serial.println(filtered_lat_pos);
+     Serial.println(current_long_pos);
      cmd_state = 0;
   }
 }
@@ -210,7 +212,7 @@ void manual() {
       break;
   }
 }
-
+ 
 void lateral_500() {
   Serial.println(filtered_lat_pos);
     float error = desired_lat_pos - lat_pos;
@@ -239,9 +241,6 @@ void lateral_500() {
       lateral_mode = false;
       I = 0;
       D = 0;
-      for(int i = 0; i < 20; i++) {
-        for (int j = 0; j < 11; j++) rs485.write(fast[j]);
-    }
     }
  
     else if(lat_pos > desired_lat_pos) {
@@ -255,18 +254,18 @@ void lateral_500() {
       }
     }
 }
-
+ 
 void longi_245() {
   int desired;
   int dif = desired_long_pos_adc - current_long_pos_adc;
   if(dif > 55) { // AGV pos < desired
     desired = desired_long_pos_adc - 20;
   }
-  else if(dif > 30 && dif <= 55) { // AGV pos < desired
+  else if(dif > 10 && dif <= 55) { // AGV pos < desired
     desired = desired_long_pos_adc - 15;
     group = 1;
   }
-  else if (dif < -30 && dif >= -55) { // AGV pos > desired
+  else if (dif < -10 && dif >= -55) { // AGV pos > desired
     desired = desired_long_pos_adc + 15;
     group = 1;
   }
@@ -276,8 +275,8 @@ void longi_245() {
   else {
     desired = desired_long_pos_adc;
   }
-
-
+ 
+ 
   if(abs(current_long_pos_adc - desired) > 5) {
     if (current_long_pos_adc > desired) {
       for (int j = 0; j < group; j++) {
@@ -296,32 +295,31 @@ void longi_245() {
     group = 2;
   }
 }
-
+ 
 void align() {
   alg_timeout = millis();
-  if (abs(R_usonic - L_usonic) >= 6) {
-      int err = abs(R_usonic - L_usonic);
+  if (abs(R_usonic_val - L_usonic_val) >= 6) {
+      int err = abs(R_usonic_val - L_usonic_val);
       P_alg = Kp_alg * err;
       I_alg += Ki_alg * sample_t * (err + prev_e_alg) * 0.5;
       D_alg = ((2 * Kd_alg) / (sample_t + 2 * tau)) * (err - prev_e_alg) - (
             (sample_t - 2 * tau) / (sample_t + 2 * tau)) * D_alg;
-
+ 
       prev_e_alg = err;
       int PID = P_alg + I_alg + D_alg;
-
+ 
       // anti-windup
       if (PID > 500) PID = 500;
       else if (PID < 0) PID = abs(PID);
-
+ 
       group = PID/100;
-
-      if (R_usonic > L_usonic) {
+      if (R_usonic_val > L_usonic_val) {
           for (int j = 0; j < group; j++) {
             for (int i = 0; i < 11; i++) rs485.write(ccw[i]);
         }
         for (int i = 0; i < 11; i++) rs485.write(idle[i]);
       }
-      else if (R_usonic < L_usonic) {
+      else if (R_usonic_val < L_usonic_val) {
         for (int j = 0; j < group; j++) {
           for (int i = 0; i < 11; i++) rs485.write(cw[i]);
         }
@@ -331,15 +329,15 @@ void align() {
   else {
     ++cnt_alg;
   }
-
-  if (cnt_alg >= 20 && abs(R_usonic - L_usonic) <= 6) {
+ 
+  if (cnt_alg >= 20 && abs(R_usonic_val - L_usonic_val) <= 6) {
     alg = false;
     cnt_alg = 0;
     group = 2;
     I_alg = 0;
     D_alg = 0;
   }
-  else if (millis() - alg_timeout > 10000 && abs(R_usonic - L_usonic) <= 10) {
+  else if (millis() - alg_timeout > 10000 && abs(R_usonic_val - L_usonic_val) <= 10) {
     alg = false;
     cnt_alg = 0;
     group = 2;
