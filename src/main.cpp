@@ -52,11 +52,18 @@ int Ki_alg = 0;
 int Kd_alg = 5;
 int prev_e_alg = 0;
 
+// longitudinal motion control parameters
+bool longi_mode = false; // setting distance to 245 mm
+bool longi_mode_bkwd = false; // setting distance to 345 mm
+int desired_long_pos_adc = 0;
+int current_long_pos_adc = 0;
+
  
 void cntrl();
 void set_cmd(int incomingByte);
 void manual();
 void lateral_500(); // lateral control for moving 500 mm to the right
+void longi_245(); // longitudinal control for moving to 245 mm from the glass
 void align(); // angular adjustment
 int search_index(float val, float arr[], int n);
  
@@ -76,6 +83,14 @@ void loop() {
       desired_lat_pos = lat_pos + 500; // target set to move 500 mm to the right 
       Serial.println(desired_lat_pos);
     }
+    else if(incomingByte == 'N' || incomingByte == 'n') {
+      longi_mode = true;
+      desired_long_pos_adc = (245 - 15) / (0.474); // target set to move 245 mm forward
+    }
+    else if(incomingByte == 'B' || incomingByte == 'b') {
+      longi_mode_bkwd = true;
+      desired_long_pos_adc = (345 - 15) / (0.474); // target set to move 345 mm backward
+    }
     else set_cmd(incomingByte);
   }
 }
@@ -83,6 +98,10 @@ void loop() {
 void cntrl(){
   R_usonic_val = analogRead(R_usonic);
   L_usonic_val = analogRead(L_usonic);
+  current_long_pos_adc = (R_usonic_val + L_usonic_val) * 0.5; // in ADC value
+  // float current_long_pos = (R_usonic_val + L_usonic_val) * 0.5 * (2350.0/1023) + 150.0; // current distance from the wall in mm
+
+
   L_TOF_val = analogRead(L_TOF);
   lat_pos = L_TOF_val * (2350.0/1023) + 150.0; // current lateral pos from the left wall in mm 
 
@@ -94,6 +113,7 @@ void cntrl(){
 
   if(lateral_mode) lateral_500();
   else if(alg) align();
+  else if(longi_mode || longi_mode_bkwd) longi_245();
   else manual();
 }
  
@@ -234,6 +254,47 @@ void lateral_500() {
         for (int i = 0; i < 11; i++) rs485.write(right[i]);
       }
     }
+}
+
+void longi_245() {
+  int desired;
+  int dif = desired_long_pos_adc - current_long_pos_adc;
+  if(dif > 55) { // AGV pos < desired
+    desired = desired_long_pos_adc - 20;
+  }
+  else if(dif > 30 && dif <= 55) { // AGV pos < desired
+    desired = desired_long_pos_adc - 15;
+    group = 1;
+  }
+  else if (dif < -30 && dif >= -55) { // AGV pos > desired
+    desired = desired_long_pos_adc + 15;
+    group = 1;
+  }
+  else if (dif < -55) { // AGV pos < desired
+    desired = desired_long_pos_adc + 20;
+  }
+  else {
+    desired = desired_long_pos_adc;
+  }
+
+
+  if(abs(current_long_pos_adc - desired) > 5) {
+    if (current_long_pos_adc > desired) {
+      for (int j = 0; j < group; j++) {
+        for (int i = 0; i < 11; i++) rs485.write(fwd[i]);
+      }
+    }
+    else if (current_long_pos_adc < desired) {
+      for (int j = 0; j < group; j++) {
+        for (int i = 0; i < 11; i++) rs485.write(bkwd[i]);
+      }
+    }
+  }
+  else {
+    longi_mode = false;
+    longi_mode_bkwd = false;
+    group = 2;
+  }
 }
 
 void align() {
