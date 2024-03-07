@@ -213,7 +213,7 @@ void manual() {
  
 void lateral_500() {
   Serial.println(filtered_lat_pos);
-    float error = desired_lat_pos - lat_pos;
+    float error = desired_lat_pos - filtered_lat_pos;
     P = Kp * error;
     I += Ki * sample_t * error;
     D = (2 * Kd / (sample_t + 2 * tau)) * (error - prev_e) - ((sample_t - 2 * tau) / (sample_t + 2 * tau)) * D;
@@ -241,12 +241,12 @@ void lateral_500() {
       D = 0;
     }
  
-    else if(lat_pos > desired_lat_pos) {
+    else if(filtered_lat_pos > desired_lat_pos) {
       for (int j = 0; j < 1; j++) {
         for (int i = 0; i < 11; i++) rs485.write(left[i]);
       }
     }
-    else if (lat_pos < desired_lat_pos) {
+    else if (filtered_lat_pos < desired_lat_pos) {
       for (int j = 0; j < 1; j++) {
         for (int i = 0; i < 11; i++) rs485.write(right[i]);
       }
@@ -309,7 +309,7 @@ void align() {
       if (PID > 500) PID = 500;
       else if (PID < 0) PID = abs(PID);
  
-      group = PID/100;
+      group = PID/70;
       if (R_usonic_val > L_usonic_val) {
           for (int j = 0; j < group; j++) {
             for (int i = 0; i < 11; i++) rs485.write(ccw[i]);
