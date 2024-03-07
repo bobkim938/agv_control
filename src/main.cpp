@@ -22,6 +22,7 @@ byte right[11]  = {0x01, 0x06, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0xFE, 0
  
 int cmd_state = 0;
 int group = 2;
+static float lat_pos_avg[5] = {0, 0, 0, 0, 0};
  
  // lateral motion control parameters
 int L_TOF_val = 0;
@@ -105,7 +106,6 @@ void cntrl(){
   lat_pos = L_TOF_val * (2350.0/1023) + 150.0; // current lateral pos from the left wall in mm
  
   // moving average with 5 samples of lat_pos
-  static float lat_pos_avg[5] = {0, 0, 0, 0, 0};
   for(int i = 0; i < 4; i++) lat_pos_avg[i] = lat_pos_avg[i+1];
   lat_pos_avg[4] = lat_pos;
   filtered_lat_pos = (lat_pos_avg[0] + lat_pos_avg[1] + lat_pos_avg[2] + lat_pos_avg[3] + lat_pos_avg[4]) / 5;
