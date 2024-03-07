@@ -236,6 +236,9 @@ void lateral_500() {
     }
  
     if (output <= 150 && output >= 0 && abs(error) <= 5) { // stop condition
+      for (int j = 0; j < 1; j++) {
+        for (int i = 0; i < 11; i++) rs485.write(left[i]);
+      }
       lateral_mode = false;
       I = 0;
       D = 0;
