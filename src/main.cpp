@@ -235,7 +235,7 @@ void lateral_500() {
       for (int j = 0; j < 11; j++) rs485.write(slow[j]);
     }
  
-    if (output <= 150 && output >= 0 && abs(error) <= 5) { // stop condition
+    if (output <= 350 && output >= 0 && abs(error) <= 22) { // stop condition
       for (int j = 0; j < 1; j++) {
         for (int i = 0; i < 11; i++) rs485.write(left[i]);
       }
