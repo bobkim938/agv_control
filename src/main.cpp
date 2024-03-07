@@ -23,6 +23,13 @@ byte right[11]  = {0x01, 0x06, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0xFE, 0
 int cmd_state = 0;
 int group = 2;
 static float lat_pos_avg[5] = {0, 0, 0, 0, 0};
+
+// target positions for inspection
+int glass_width = 0; // in m
+int motion_index = 0;
+int motion_range = 0;
+float* position_table;
+bool target_pos = false;
  
  // lateral motion control parameters
 int L_TOF_val = 0;
@@ -40,6 +47,7 @@ float tau = 0.5;
 float sample_t = 0.05;
 float prev_e = 0;
 bool lateral_mode = false;
+int position_cnt = 0;
  
 // alignment parameters
 int R_usonic_val = 0;
@@ -60,6 +68,7 @@ int desired_long_pos_adc = 0;
 int current_long_pos_adc = 0;
 float current_long_pos;
  
+void set_target_pos();
 void cntrl();
 void set_cmd(int incomingByte);
 void manual();
@@ -71,7 +80,15 @@ int search_index(float val, float arr[], int n);
 void setup() {
   Serial.begin(115200);
   Serial1.begin(9600);
-  while (!Serial);
+  while (!Serial1) 
+  Serial.println("Enter the width of the glass in meters: ");
+  while(glass_width != 0) {
+    glass_width = Serial.readStringUntil('\n').toFloat() * 1000; // in mm
+  }
+  motion_range = glass_width - 650; // glass width - 650 mm (width of the AGV)
+  motion_index = motion_range / 500; 
+  position_table = new float[motion_index + 1];
+
   Timer1.initialize(50000); // 50 millseconds
   Timer1.attachInterrupt(cntrl);
 }
@@ -79,9 +96,13 @@ void setup() {
 void loop() {
   if(Serial.available() > 0){
     int incomingByte = Serial.read();
+    if(!target_pos && (incomingByte == 'Z' || incomingByte == 'z')) {
+      void set_target_pos();
+    }
     if(incomingByte == 'C' || incomingByte == 'c') {
       lateral_mode = true;
-      desired_lat_pos = lat_pos + 500; // target set to move 500 mm to the right
+      desired_lat_pos = *(position_table + position_cnt); // target set to move 500 mm to the right
+      position_cnt++;
       Serial.println(desired_lat_pos);
     }
     else if(incomingByte == 'N' || incomingByte == 'n') {
@@ -94,6 +115,13 @@ void loop() {
     }
     else set_cmd(incomingByte);
   }
+}
+
+void set_target_pos() {
+  for(int i = 0; i < motion_index - 1; i++) {
+    *(position_table + i) = filtered_lat_pos + (i + 1) * 500;
+  }
+  *(position_table + motion_index - 1) = *(position_table + motion_index - 2) + (motion_range % 500); // last target position
 }
  
 void cntrl(){
