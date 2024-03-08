@@ -1,5 +1,6 @@
 #include <RS485.h>
 #include <TimerOne.h>
+#include <TImerThree.h>
 #include <Arduino.h>
  
 #define R_usonic A0
@@ -69,6 +70,7 @@ int current_long_pos_adc = 0;
 float current_long_pos;
  
 void set_target_pos();
+void read_sensors();
 void cntrl();
 void set_cmd(int incomingByte);
 void manual();
@@ -85,12 +87,14 @@ void setup() {
   while(glass_width != 0) {
     glass_width = Serial.readStringUntil('\n').toFloat() * 1000; // in mm
   }
-  motion_range = glass_width - 650; // glass width - 650 mm (width of the AGV)
+  motion_range = glass_width - 650; // glass width - AGV width
   motion_index = motion_range / 500; 
   position_table = new float[motion_index + 1];
 
   Timer1.initialize(50000); // 50 millseconds
   Timer1.attachInterrupt(cntrl);
+  Timer3.initialize(20000); // 20 milliseconds
+  Timer3.attachInterrupt(read_sensors);
 }
  
 void loop() {
@@ -123,8 +127,8 @@ void set_target_pos() {
   }
   *(position_table + motion_index - 1) = *(position_table + motion_index - 2) + (motion_range % 500); // last target position
 }
- 
-void cntrl(){
+
+void read_sensors() {
   R_usonic_val = analogRead(R_usonic);
   L_usonic_val = analogRead(L_usonic);
   current_long_pos_adc = (R_usonic_val + L_usonic_val) * 0.5; // in ADC value
@@ -133,11 +137,13 @@ void cntrl(){
   L_TOF_val = analogRead(L_TOF);
   lat_pos = L_TOF_val * (2350.0/1023) + 150.0; // current lateral pos from the left wall in mm
  
-  // moving average with 5 samples of lat_pos
+    // moving average with 5 samples of lat_pos
   for(int i = 0; i < 4; i++) lat_pos_avg[i] = lat_pos_avg[i+1];
   lat_pos_avg[4] = lat_pos;
   filtered_lat_pos = (lat_pos_avg[0] + lat_pos_avg[1] + lat_pos_avg[2] + lat_pos_avg[3] + lat_pos_avg[4]) / 5;
+}
  
+void cntrl(){
   if(lateral_mode) lateral_500();
   else if(alg) align();
   else if(longi_mode || longi_mode_bkwd) longi_245();
@@ -264,9 +270,6 @@ void lateral_500() {
     }
  
     if (output <= 350 && output >= 0 && abs(error) <= 22) { // stop condition
-      for (int j = 0; j < 1; j++) {
-        for (int i = 0; i < 11; i++) rs485.write(left[i]);
-      }
       lateral_mode = false;
       I = 0;
       D = 0;
