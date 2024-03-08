@@ -23,7 +23,7 @@ byte right[11]  = {0x01, 0x06, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0xFE, 0
  
 int cmd_state = 0;
 int group = 2;
-static float lat_pos_avg[5] = {0, 0, 0, 0, 0};
+static float lat_pos_avg[5] = {};
 
 // target positions for inspection
 int glass_width = 0; // in m
