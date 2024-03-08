@@ -10,4 +10,5 @@ class calibration {
     private:
         float offset;
         int tof;
+        float distance;
 };
