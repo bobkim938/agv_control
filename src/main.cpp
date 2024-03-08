@@ -111,11 +111,11 @@ void loop() {
     }
     else if(incomingByte == 'N' || incomingByte == 'n') {
       longi_mode = true;
-      desired_long_pos_adc = (245 - 15) / (0.474); // target set to move 245 mm forward
+      desired_long_pos_adc = (245 - 15) / (0.474); // target set to move 245 mm forward (unit in ADC value)
     }
     else if(incomingByte == 'B' || incomingByte == 'b') {
       longi_mode_bkwd = true;
-      desired_long_pos_adc = (345 - 15) / (0.474); // target set to move 345 mm backward
+      desired_long_pos_adc = (345 - 15) / (0.474); // target set to move 345 mm backward (unit in ADC value)
     }
     else set_cmd(incomingByte);
   }
@@ -137,19 +137,19 @@ void read_sensors() {
   L_TOF_val = analogRead(L_TOF);
   lat_pos = L_TOF_val * (2350.0/1023) + 150.0; // current lateral pos from the left wall in mm
  
-    // moving average with 5 samples of lat_pos
+  // moving average with 5 samples of lat_pos
   for(int i = 0; i < 4; i++) lat_pos_avg[i] = lat_pos_avg[i+1];
   lat_pos_avg[4] = lat_pos;
   filtered_lat_pos = (lat_pos_avg[0] + lat_pos_avg[1] + lat_pos_avg[2] + lat_pos_avg[3] + lat_pos_avg[4]) / 5;
 }
- 
+
 void cntrl(){
   if(lateral_mode) lateral_500();
   else if(alg) align();
   else if(longi_mode || longi_mode_bkwd) longi_245();
   else manual();
 }
- 
+
 void set_cmd(int incomingByte) {
   if (incomingByte == 32) { // space
     cmd_state = 0;
@@ -177,7 +177,7 @@ void set_cmd(int incomingByte) {
      cmd_state = 0;
   }
 }
- 
+
 void manual() {
   switch (cmd_state) {
     case 0: // idle
@@ -244,7 +244,7 @@ void manual() {
       break;
   }
 }
- 
+
 void lateral_500() {
   Serial.println(filtered_lat_pos);
     float error = desired_lat_pos - filtered_lat_pos;
@@ -286,7 +286,7 @@ void lateral_500() {
       }
     }
 }
- 
+
 void longi_245() {
   int desired;
   int dif = desired_long_pos_adc - current_long_pos_adc;
@@ -326,7 +326,7 @@ void longi_245() {
     group = 2;
   }
 }
- 
+
 void align() {
   alg_timeout = millis();
   if (abs(R_usonic_val - L_usonic_val) >= 6) {
@@ -376,7 +376,7 @@ void align() {
     D_alg = 0;
   }
 }
- 
+
 int search_index(float val, float arr[], int n) {
   // searching for val with the closest value in the speed_table
   int index = 0;
