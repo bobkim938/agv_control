@@ -13,6 +13,7 @@ float calibration::setOffset() {
     }
     float avg_tof = tof / 10;
     offset = avg_tof;
-    
+
+
     return offset;
 }
