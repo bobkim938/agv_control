@@ -12,6 +12,7 @@ float calibration::setOffset() {
         tof += analogRead(A2); // read current tof value
     }
     float avg_tof = tof / 10;
+    offset = avg_tof;
 
 
     return offset;
