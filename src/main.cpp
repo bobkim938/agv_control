@@ -81,7 +81,7 @@ void setup() {
   Timer3.initialize(20000); // 20 milliseconds
   Timer3.attachInterrupt(read_sensors);
 }
- 
+
 void loop() {
   if(Serial.available() > 0){
     int incomingByte = Serial.read();
@@ -127,24 +127,24 @@ void loop() {
       for(int i = 0; i < 4; i++) {
         if(num[i] == ',') n = i;
       }
-        if(n == 1) {
-          desired_long_pos = num[0];
-          longi_mode = true;
-          n = 11;
-        }
-        else if(n == 2) {
-          desired_long_pos = num[0] * 10.0 + num[1];
-          longi_mode = true;
-          n = 11;
-        }
-        else if(n == 3) {
-          desired_long_pos = num[0] * 100.0 + num[1] * 10.0 + num[2];
-          longi_mode = true;
-          n = 11;
-        }
-        else {
-          longi_mode = false;
-        }
+      if(n == 1) {
+        desired_long_pos = num[0];
+        longi_mode = true;
+        n = 11;
+      }
+      else if(n == 2) {
+        desired_long_pos = num[0] * 10.0 + num[1];
+        longi_mode = true;
+        n = 11;
+      }
+      else if(n == 3) {
+        desired_long_pos = num[0] * 100.0 + num[1] * 10.0 + num[2];
+        longi_mode = true;
+        n = 11;
+      }
+      else {
+        longi_mode = false;
+      }
 
       desired_long_pos_adc = (desired_long_pos - 15.0) * (1023.0 / 485.0); // target set to move forward (unit in ADC value)
     }
