@@ -55,8 +55,7 @@ int Kd_alg = 5;
 int prev_e_alg = 0;
  
 // longitudinal motion control parameters
-bool longi_mode = false; // setting distance to 245 mm
-bool longi_mode_bkwd = false; // setting distance to 345 mm
+bool longi_mode = false; // move to the desired longitudinal position
 int desired_long_pos_adc = 0;
 float desired_long_pos;
 int current_long_pos_adc = 0;
@@ -149,10 +148,6 @@ void loop() {
 
       desired_long_pos_adc = (desired_long_pos - 15.0) * (1023.0 / 485.0); // target set to move forward (unit in ADC value)
     }
-    else if(incomingByte == 'B' || incomingByte == 'b') {
-      longi_mode_bkwd = true;
-      desired_long_pos_adc = (345 - 15) / (0.474); // target set to move 345 mm backward (unit in ADC value)
-    }
     else set_cmd(incomingByte);
   }
 }
@@ -175,7 +170,7 @@ void read_sensors() {
 void cntrl(){
   if(lateral_mode) lateral_500();
   else if(alg) align();
-  else if(longi_mode || longi_mode_bkwd) longi_245();
+  else if(longi_mode) longi_245();
   else manual();
 }
 
@@ -351,7 +346,6 @@ void longi_245() {
   }
   else {
     longi_mode = false;
-    longi_mode_bkwd = false;
     group = 2;
   }
 }
