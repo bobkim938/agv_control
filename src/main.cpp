@@ -25,20 +25,13 @@ int cmd_state = 0;
 int group = 2;
 static float lat_pos_avg[5] = {};
 
-// target positions for inspection
-int glass_width = 0; // in m
-int motion_index = 0;
-int motion_range = 0;
-float* position_table;
-bool target_pos = false;
- 
  // lateral motion control parameters
 int L_TOF_val = 0;
 float current_lat_speed = 0.1; // max: 0.1, min = 0.02
 float speed_table[10] = {0.1, 0.091, 0.0822, 0.0733, 0.0644, 0.0555, 0.0466, 0.0377, 0.0288, 0.0199}; // speed table for lateral control
 float lat_pos = 0;
 float filtered_lat_pos = 0;
-float desired_lat_pos = 0;
+float desired_lat_pos = 0; // in mm
 // PID parameters for lateral control
 float P, I, D;
 float Kp = 5.0;
@@ -48,7 +41,6 @@ float tau = 0.5;
 float sample_t = 0.05;
 float prev_e = 0;
 bool lateral_mode = false;
-int position_cnt = 0;
  
 // alignment parameters
 int R_usonic_val = 0;
@@ -66,6 +58,7 @@ int prev_e_alg = 0;
 bool longi_mode = false; // setting distance to 245 mm
 bool longi_mode_bkwd = false; // setting distance to 345 mm
 int desired_long_pos_adc = 0;
+float desired_long_pos;
 int current_long_pos_adc = 0;
 float current_long_pos;
  
@@ -82,14 +75,7 @@ int search_index(float val, float arr[], int n);
 void setup() {
   Serial.begin(115200);
   Serial1.begin(9600);
-  while (!Serial1) 
-  Serial.println("Enter the width of the glass in meters: ");
-  while(glass_width != 0) {
-    glass_width = Serial.readStringUntil('\n').toFloat() * 1000; // in mm
-  }
-  motion_range = glass_width - 650; // glass width - AGV width
-  motion_index = motion_range / 500; 
-  position_table = new float[motion_index + 1];
+  while (!Serial1);
 
   Timer1.initialize(50000); // 50 millseconds
   Timer1.attachInterrupt(cntrl);
@@ -100,18 +86,68 @@ void setup() {
 void loop() {
   if(Serial.available() > 0){
     int incomingByte = Serial.read();
-    if(!target_pos && (incomingByte == 'Z' || incomingByte == 'z')) {
-      void set_target_pos();
-    }
     if(incomingByte == 'C' || incomingByte == 'c') {
-      lateral_mode = true;
-      desired_lat_pos = *(position_table + position_cnt); // target set to move 500 mm to the right
-      position_cnt++;
+      char num[6];
+      int n = 11;
+      Serial.readBytes(num,6);
+      num[5] = '\0';
+      for(int i = 0; i < 5; i++) {
+        if(num[i] == ',') n = i;
+      }
+      if(n == 1) {
+        desired_lat_pos = num[0];
+        lateral_mode = true;
+        n = 11;
+      }
+      else if(n == 2) {
+        desired_lat_pos = num[0] * 10.0 + num[1];
+        lateral_mode = true;
+        n = 11;
+      }
+      else if(n == 3) {
+        desired_lat_pos = num[0] * 100.0 + num[1] * 10.0 + num[2];
+        lateral_mode = true;
+        n = 11;
+      }
+      else if(n == 4) {
+        desired_lat_pos = num[0] * 1000.0 + num[1] * 100.0 + num[2] * 10.0 + num[3];
+        lateral_mode = true;
+        n = 11;
+      }
+      else {
+        lateral_mode = false;
+      }
       Serial.println(desired_lat_pos);
     }
+
     else if(incomingByte == 'N' || incomingByte == 'n') {
-      longi_mode = true;
-      desired_long_pos_adc = (245 - 15) / (0.474); // target set to move 245 mm forward (unit in ADC value)
+      char num[5];
+      int n = 11;
+      Serial.readBytes(num,5);
+      num[4] = '\0';
+      for(int i = 0; i < 4; i++) {
+        if(num[i] == ',') n = i;
+      }
+        if(n == 1) {
+          desired_long_pos = num[0];
+          longi_mode = true;
+          n = 11;
+        }
+        else if(n == 2) {
+          desired_long_pos = num[0] * 10.0 + num[1];
+          longi_mode = true;
+          n = 11;
+        }
+        else if(n == 3) {
+          desired_long_pos = num[0] * 100.0 + num[1] * 10.0 + num[2];
+          longi_mode = true;
+          n = 11;
+        }
+        else {
+          longi_mode = false;
+        }
+
+      desired_long_pos_adc = (desired_long_pos - 15.0) * (1023.0 / 485.0); // target set to move forward (unit in ADC value)
     }
     else if(incomingByte == 'B' || incomingByte == 'b') {
       longi_mode_bkwd = true;
@@ -119,13 +155,6 @@ void loop() {
     }
     else set_cmd(incomingByte);
   }
-}
-
-void set_target_pos() {
-  for(int i = 0; i < motion_index - 1; i++) {
-    *(position_table + i) = filtered_lat_pos + (i + 1) * 500;
-  }
-  *(position_table + motion_index - 1) = *(position_table + motion_index - 2) + (motion_range % 500); // last target position
 }
 
 void read_sensors() {
