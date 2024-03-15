@@ -25,20 +25,13 @@ int cmd_state = 0;
 int group = 2;
 static float lat_pos_avg[5] = {};
 
-// target positions for inspection
-int glass_width = 0; // in m
-int motion_index = 0;
-int motion_range = 0;
-float* position_table;
-bool target_pos = false;
- 
  // lateral motion control parameters
 int L_TOF_val = 0;
 float current_lat_speed = 0.1; // max: 0.1, min = 0.02
 float speed_table[10] = {0.1, 0.091, 0.0822, 0.0733, 0.0644, 0.0555, 0.0466, 0.0377, 0.0288, 0.0199}; // speed table for lateral control
 float lat_pos = 0;
 float filtered_lat_pos = 0;
-float desired_lat_pos = 0;
+float desired_lat_pos = 0; // in mm
 // PID parameters for lateral control
 float P, I, D;
 float Kp = 5.0;
@@ -48,7 +41,6 @@ float tau = 0.5;
 float sample_t = 0.05;
 float prev_e = 0;
 bool lateral_mode = false;
-int position_cnt = 0;
  
 // alignment parameters
 int R_usonic_val = 0;
@@ -63,10 +55,9 @@ int Kd_alg = 5;
 int prev_e_alg = 0;
  
 // longitudinal motion control parameters
-bool longi_mode = false; // setting distance to 245 mm
-bool longi_mode_bkwd = false; // setting distance to 345 mm
-float desired_long_pos;
+bool longi_mode = false; // move to the desired longitudinal position
 int desired_long_pos_adc = 0;
+float desired_long_pos;
 int current_long_pos_adc = 0;
 float current_long_pos;
  
@@ -83,27 +74,17 @@ int search_index(float val, float arr[], int n);
 void setup() {
   Serial.begin(115200);
   Serial1.begin(9600);
-  while (!Serial1) 
-  Serial.println("Enter the width of the glass in meters: ");
-  while(glass_width != 0) {
-    glass_width = Serial.readStringUntil('\n').toFloat() * 1000; // in mm
-  }
-  motion_range = glass_width - 650; // glass width - AGV width
-  motion_index = motion_range / 500; 
-  position_table = new float[motion_index + 1];
+  while (!Serial1);
 
   Timer1.initialize(50000); // 50 millseconds
   Timer1.attachInterrupt(cntrl);
   Timer3.initialize(20000); // 20 milliseconds
   Timer3.attachInterrupt(read_sensors);
 }
- 
+
 void loop() {
   if(Serial.available() > 0){
     int incomingByte = Serial.read();
-    if(!target_pos && (incomingByte == 'Z' || incomingByte == 'z')) {
-      void set_target_pos();
-    }
     if(incomingByte == 'C' || incomingByte == 'c') {
       char num[6];
       int n = 11;
@@ -135,8 +116,8 @@ void loop() {
       else {
         lateral_mode = false;
       }
-      Serial.println(desired_lat_pos);
     }
+
     else if(incomingByte == 'N' || incomingByte == 'n') {
       char num[5];
       int n = 11;
@@ -145,18 +126,9 @@ void loop() {
       for(int i = 0; i < 4; i++) {
         if(num[i] == ',') n = i;
       }
-      if(n == 1) {
-        desired_long_pos = num[0];
-        longi_mode = true;
-        n = 11;
-      }
-      else if(n == 2) {
-        desired_long_pos = num[0] * 10.0 + num[1];
-        longi_mode = true;
-        n = 11;
-      }
-      else if(n == 3) {
-        desired_long_pos = num[0] * 100.0 + num[1] * 10.0 + num[2];
+      if(n >= 1 && n <= 3) {
+        num[n] = '\0';
+        desired_long_pos = atof(num);
         longi_mode = true;
         n = 11;
       }
@@ -170,16 +142,9 @@ void loop() {
   }
 }
 
-void set_target_pos() {
-  for(int i = 0; i < motion_index - 1; i++) {
-    *(position_table + i) = filtered_lat_pos + (i + 1) * 500;
-  }
-  *(position_table + motion_index - 1) = *(position_table + motion_index - 2) + (motion_range % 500); // last target position
-}
-
 void read_sensors() {
   L_TOF_val = analogRead(L_TOF);
-  lat_pos = L_TOF_val * (2350.0/1023) + 150.0; // current lateral pos from the left wall in mm
+  lat_pos = (0.4903 * L_TOF_val + 1.1139) * 10.0; // current lateral pos from the left wall in mm
  
   // moving average with 5 samples of lat_pos
   for(int i = 0; i < 4; i++) lat_pos_avg[i] = lat_pos_avg[i+1];
@@ -188,10 +153,26 @@ void read_sensors() {
 }
 
 void cntrl(){
-  if(lateral_mode) lateral_500();
-  else if(alg) align();
-  else if(longi_mode) longi_245();
-  else manual();
+  R_usonic_val = analogRead(R_usonic);
+  L_usonic_val = analogRead(L_usonic);
+  current_long_pos_adc = (R_usonic_val + L_usonic_val) * 0.5; // in ADC value
+  current_long_pos = current_long_pos_adc * (485.0/1023) + 15.0; // current distance from the wall in mm
+  if(lateral_mode) {
+    lateral_500();
+    //Serial.print("M");
+  } 
+  else if(alg) {
+    align();
+    //Serial.print("M");
+  }
+  else if(longi_mode) {
+    longi_245();
+    //Serial.println("M");
+  }
+  else {
+    manual();
+    //Serial.print("I");
+  }
 }
 
 void set_cmd(int incomingByte) {
@@ -365,7 +346,6 @@ void longi_245() {
   }
   else {
     longi_mode = false;
-    longi_mode_bkwd = false;
     group = 2;
     Serial.println('D');
   }
