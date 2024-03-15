@@ -65,6 +65,7 @@ int prev_e_alg = 0;
 // longitudinal motion control parameters
 bool longi_mode = false; // setting distance to 245 mm
 bool longi_mode_bkwd = false; // setting distance to 345 mm
+float desired_long_pos;
 int desired_long_pos_adc = 0;
 int current_long_pos_adc = 0;
 float current_long_pos;
@@ -144,10 +145,18 @@ void loop() {
       for(int i = 0; i < 4; i++) {
         if(num[i] == ',') n = i;
       }
-       num[n] = '\0';
-      if(n >= 1 && n <= 3) {
-        num[n] = '\0';
-        desired_long_pos = atof(num);
+      if(n == 1) {
+        desired_long_pos = num[0];
+        longi_mode = true;
+        n = 11;
+      }
+      else if(n == 2) {
+        desired_long_pos = num[0] * 10.0 + num[1];
+        longi_mode = true;
+        n = 11;
+      }
+      else if(n == 3) {
+        desired_long_pos = num[0] * 100.0 + num[1] * 10.0 + num[2];
         longi_mode = true;
         n = 11;
       }
