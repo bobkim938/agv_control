@@ -1,6 +1,6 @@
 #include <RS485.h>
 #include <TimerOne.h>
-#include <TImerThree.h>
+#include <TimerThree.h>
 #include <Arduino.h>
  
 #define R_usonic A0
@@ -116,7 +116,6 @@ void loop() {
       else {
         lateral_mode = false;
       }
-      Serial.println(desired_lat_pos);
     }
 
     else if(incomingByte == 'N' || incomingByte == 'n') {
@@ -127,18 +126,10 @@ void loop() {
       for(int i = 0; i < 4; i++) {
         if(num[i] == ',') n = i;
       }
-      if(n == 1) {
-        desired_long_pos = num[0];
-        longi_mode = true;
-        n = 11;
-      }
-      else if(n == 2) {
-        desired_long_pos = num[0] * 10.0 + num[1];
-        longi_mode = true;
-        n = 11;
-      }
-      else if(n == 3) {
-        desired_long_pos = num[0] * 100.0 + num[1] * 10.0 + num[2];
+      num[n] = '\0';
+      if(n >= 1 && n <= 3) {
+        num[n] = '\0';
+        desired_long_pos = atof(num);
         longi_mode = true;
         n = 11;
       }
@@ -153,11 +144,6 @@ void loop() {
 }
 
 void read_sensors() {
-  R_usonic_val = analogRead(R_usonic);
-  L_usonic_val = analogRead(L_usonic);
-  current_long_pos_adc = (R_usonic_val + L_usonic_val) * 0.5; // in ADC value
-  current_long_pos = current_long_pos_adc * (485.0/1023) + 15.0; // current distance from the wall in mm
- 
   L_TOF_val = analogRead(L_TOF);
   lat_pos = (0.4903 * L_TOF_val + 1.1139) * 10.0; // current lateral pos from the left wall in mm
  
@@ -168,10 +154,26 @@ void read_sensors() {
 }
 
 void cntrl(){
-  if(lateral_mode) lateral_500();
-  else if(alg) align();
-  else if(longi_mode) longi_245();
-  else manual();
+  R_usonic_val = analogRead(R_usonic);
+  L_usonic_val = analogRead(L_usonic);
+  current_long_pos_adc = (R_usonic_val + L_usonic_val) * 0.5; // in ADC value
+  current_long_pos = current_long_pos_adc * (485.0/1023) + 15.0; // current distance from the wall in mm
+  if(lateral_mode) {
+    lateral_500();
+    //Serial.print("M");
+  } 
+  else if(alg) {
+    align();
+    //Serial.print("M");
+  }
+  else if(longi_mode) {
+    longi_245();
+    //Serial.println("M");
+  }
+  else {
+    manual();
+    //Serial.print("I");
+  }
 }
 
 void set_cmd(int incomingByte) {
@@ -196,8 +198,10 @@ void set_cmd(int incomingByte) {
   } else if (incomingByte == 77 || incomingByte == 109) { // 'M' or 'm' for alignmnent
     alg = true;
   } else if(incomingByte == 'P' || incomingByte == 'p') {
-     Serial.println(filtered_lat_pos);
+     //Serial.println(filtered_lat_pos);
      Serial.println(current_long_pos);
+     //Serial.println(R_usonic_val);
+     //Serial.println(L_usonic_val);
      cmd_state = 0;
   }
 }
@@ -270,14 +274,12 @@ void manual() {
 }
 
 void lateral_500() {
-  Serial.println(filtered_lat_pos);
     float error = desired_lat_pos - filtered_lat_pos;
     P = Kp * error;
     I += Ki * sample_t * error;
     D = (2 * Kd / (sample_t + 2 * tau)) * (error - prev_e) - ((sample_t - 2 * tau) / (sample_t + 2 * tau)) * D;
     prev_e = error;
     float output = P + I + D;
-    Serial.println(output);
  
     if (I > 300) I = 300;
     else if (I < -300) I = -300;
@@ -286,9 +288,8 @@ void lateral_500() {
     else if (output < -1500) output = -1500;
  
     current_lat_speed = 0.1 * output / 1500;
-    Serial.println(current_lat_speed);
+
     int speed_index = search_index(current_lat_speed, speed_table, 10);
-    Serial.println(speed_index);
     for(int i = 0; i < speed_index * 2; i++) {
       for (int j = 0; j < 11; j++) rs485.write(slow[j]);
     }
@@ -347,6 +348,7 @@ void longi_245() {
   else {
     longi_mode = false;
     group = 2;
+    Serial.println('D');
   }
 }
 
