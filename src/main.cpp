@@ -103,7 +103,6 @@ void loop() {
         lateral_mode = false;
       }
     }
-
     else if(incomingByte == 'N' || incomingByte == 'n') {
       char num[5];
       int n = 11;
@@ -121,8 +120,12 @@ void loop() {
       else {
         longi_mode = false;
       }
-
       desired_long_pos_adc = (desired_long_pos - 15.0) * (1023.0 / 485.0); // target set to move forward (unit in ADC value)
+    }
+    else if (incomingByte == 'V' || incomingByte == 'v') {
+      for(int i = 0; i < 50; i++) {
+        for (int j = 0; j < 11; j++) rs485.write(fast[j]);
+      }
     }
     else set_cmd(incomingByte);
   }
@@ -145,19 +148,15 @@ void cntrl(){
   current_long_pos = current_long_pos_adc * (485.0/1023) + 15.0; // current distance from the wall in mm
   if(lateral_mode) {
     lateral_500();
-    //Serial.print("M");
   } 
   else if(alg) {
     align();
-    //Serial.print("M");
   }
   else if(longi_mode) {
     longi_245();
-    //Serial.println("M");
   }
   else {
     manual();
-    //Serial.print("I");
   }
 }
 
@@ -201,7 +200,7 @@ void set_cmd(int incomingByte) {
     else {
       Serial.println("Finished");
     }
-  }
+  } 
 }
 
 void manual() {
