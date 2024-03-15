@@ -93,23 +93,9 @@ void loop() {
       for(int i = 0; i < 5; i++) {
         if(num[i] == ',') n = i;
       }
-      if(n == 1) {
-        desired_lat_pos = num[0];
-        lateral_mode = true;
-        n = 11;
-      }
-      else if(n == 2) {
-        desired_lat_pos = num[0] * 10.0 + num[1];
-        lateral_mode = true;
-        n = 11;
-      }
-      else if(n == 3) {
-        desired_lat_pos = num[0] * 100.0 + num[1] * 10.0 + num[2];
-        lateral_mode = true;
-        n = 11;
-      }
-      else if(n == 4) {
-        desired_lat_pos = num[0] * 1000.0 + num[1] * 100.0 + num[2] * 10.0 + num[3];
+      if(n >= 1 && n <= 4) {
+        num[n] = '\0';
+        desired_lat_pos = atof(num);
         lateral_mode = true;
         n = 11;
       }
@@ -202,6 +188,19 @@ void set_cmd(int incomingByte) {
      //Serial.println(R_usonic_val);
      //Serial.println(L_usonic_val);
      cmd_state = 0;
+  } else if(incomingByte == '[')  {
+    if (alg) {
+      Serial.println("Aligning");
+    }
+    else if (lateral_mode) {
+      Serial.println("Lateral control");
+    }
+    else if (longi_mode) {
+      Serial.println("Longitudinal control");
+    }
+    else {
+      Serial.println("Finished");
+    }
   }
 }
 
