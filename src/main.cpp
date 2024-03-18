@@ -1,10 +1,13 @@
 #include <RS485.h>
 #include <TimerOne.h>
 #include <Arduino.h>
+#include <Adafruit_ADS1X15.h>
  
 #define R_usonic A0
 #define L_usonic A1
 #define L_TOF A2
+
+Adafruit_ADS1115 ads;
  
 const uint8_t sendPin  = 8;
 const uint8_t deviceID = 0;
@@ -77,11 +80,19 @@ void setup() {
 
   Timer1.initialize(50000); // 50 millseconds
   Timer1.attachInterrupt(cntrl);
+
+  ads.setGain(GAIN_TWOTHIRDS);
+
+  if (!ads.begin()) {
+  Serial.println("Failed to initialize ADS.");
+  while (1);
+  }
 }
 
 void loop() {
   R_usonic_val = analogRead(R_usonic);
   L_usonic_val = analogRead(L_usonic);  
+  L_TOF_val = ads.readADC_SingleEnded(0);
   if(Serial.available() > 0){
     int incomingByte = Serial.read();
     if(incomingByte == 'C' || incomingByte == 'c') {
@@ -131,7 +142,6 @@ void loop() {
 }
 
 void cntrl(){
-  L_TOF_val = analogRead(L_TOF);
   lat_pos = (0.4903 * L_TOF_val + 1.1139) * 10.0; // current lateral pos from the left wall in mm
  
   // moving average with 5 samples of lat_pos
@@ -141,6 +151,8 @@ void cntrl(){
   current_long_pos_adc = (R_usonic_val + L_usonic_val) * 0.5; // in ADC value
   current_long_pos = current_long_pos_adc * (485.0/1023) + 15.0; // current distance from the wall in mm
   if(lateral_mode) {
+    L_TOF_val = ads.readADC_SingleEnded(0);
+    lat_pos = (0.4903 * L_TOF_val + 1.1139) * 10.0; // current lateral pos from the left wall in mm
     lateral_500();
   } 
   else if(alg) {
@@ -176,10 +188,11 @@ void set_cmd(int incomingByte) {
   } else if (incomingByte == 77 || incomingByte == 109) { // 'M' or 'm' for alignmnent
     alg = true;
   } else if(incomingByte == 'P' || incomingByte == 'p') {
-    Serial.print('p');
+    // Serial.print('p');
     Serial.println(filtered_lat_pos);
-    Serial.print(',');
-    Serial.println(current_long_pos);
+    // Serial.print(',');
+    // Serial.println(current_long_pos);
+    Serial.println(L_TOF_val);
     //Serial.println(R_usonic_val);
     //Serial.println(L_usonic_val);
      cmd_state = 0;
@@ -268,6 +281,7 @@ void manual() {
 
 void lateral_500() {
     float error = desired_lat_pos - filtered_lat_pos;
+    Serial.println(error);
     P = Kp * error;
     I += Ki * sample_t * error;
     D = (2 * Kd / (sample_t + 2 * tau)) * (error - prev_e) - ((sample_t - 2 * tau) / (sample_t + 2 * tau)) * D;
