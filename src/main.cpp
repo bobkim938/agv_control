@@ -1,6 +1,5 @@
 #include <RS485.h>
 #include <TimerOne.h>
-#include <TimerThree.h>
 #include <Arduino.h>
  
 #define R_usonic A0
@@ -78,11 +77,11 @@ void setup() {
 
   Timer1.initialize(50000); // 50 millseconds
   Timer1.attachInterrupt(cntrl);
-  Timer3.initialize(20000); // 20 milliseconds
-  Timer3.attachInterrupt(read_sensors);
 }
 
 void loop() {
+  R_usonic_val = analogRead(R_usonic);
+  L_usonic_val = analogRead(L_usonic);  
   if(Serial.available() > 0){
     int incomingByte = Serial.read();
     if(incomingByte == 'C' || incomingByte == 'c') {
@@ -131,19 +130,14 @@ void loop() {
   }
 }
 
-void read_sensors() {
-  L_TOF_val = analogRead(L_TOF);
+void cntrl(){
+    L_TOF_val = analogRead(L_TOF);
   lat_pos = (0.4903 * L_TOF_val + 1.1139) * 10.0; // current lateral pos from the left wall in mm
  
   // moving average with 5 samples of lat_pos
   for(int i = 0; i < 4; i++) lat_pos_avg[i] = lat_pos_avg[i+1];
   lat_pos_avg[4] = lat_pos;
   filtered_lat_pos = (lat_pos_avg[0] + lat_pos_avg[1] + lat_pos_avg[2] + lat_pos_avg[3] + lat_pos_avg[4]) / 5;
-}
-
-void cntrl(){
-  R_usonic_val = analogRead(R_usonic);
-  L_usonic_val = analogRead(L_usonic);
   current_long_pos_adc = (R_usonic_val + L_usonic_val) * 0.5; // in ADC value
   current_long_pos = current_long_pos_adc * (485.0/1023) + 15.0; // current distance from the wall in mm
   if(lateral_mode) {
@@ -182,10 +176,12 @@ void set_cmd(int incomingByte) {
   } else if (incomingByte == 77 || incomingByte == 109) { // 'M' or 'm' for alignmnent
     alg = true;
   } else if(incomingByte == 'P' || incomingByte == 'p') {
-     //Serial.println(filtered_lat_pos);
-     Serial.println(current_long_pos);
-     //Serial.println(R_usonic_val);
-     //Serial.println(L_usonic_val);
+    Serial.print('p');
+    Serial.println(filtered_lat_pos);
+    Serial.print(',');
+    Serial.println(current_long_pos);
+    //Serial.println(R_usonic_val);
+    //Serial.println(L_usonic_val);
      cmd_state = 0;
   } else if(incomingByte == '[')  {
     if (alg) {
