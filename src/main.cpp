@@ -131,7 +131,7 @@ void loop() {
 }
 
 void cntrl(){
-    L_TOF_val = analogRead(L_TOF);
+  L_TOF_val = analogRead(L_TOF);
   lat_pos = (0.4903 * L_TOF_val + 1.1139) * 10.0; // current lateral pos from the left wall in mm
  
   // moving average with 5 samples of lat_pos
