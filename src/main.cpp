@@ -7,8 +7,13 @@
 #define L_usonic A1
 #define L_TOF A2
 
+#define intrpt 5
+#define trig 6
+
 Adafruit_ADS1115 ads;
- 
+
+bool trigger_state = false;
+
 const uint8_t sendPin  = 8;
 const uint8_t deviceID = 0;
 RS485 rs485(&Serial1, sendPin);  //uses default deviceID
@@ -72,7 +77,12 @@ void lateral_500(); // lateral control for moving 500 mm to the right
 void longi_245(); // longitudinal control for moving to 245 mm from the glass
 void align(); // angular adjustment
 int search_index(float val, float arr[], int n);
- 
+
+void isr() {
+  L_TOF_val = ads.readADC_SingleEnded(0);
+  digitalWrite(trig, LOW);
+}
+
 void setup() {
   Serial.begin(115200);
   Serial1.begin(9600);
@@ -80,6 +90,10 @@ void setup() {
 
   Timer1.initialize(50000); // 50 millseconds
   Timer1.attachInterrupt(cntrl);
+
+  pinMode(intrpt, INPUT);
+  pinMode(trig, OUTPUT);
+  attachInterrupt(digitalPinToInterrupt(intrpt), isr, RISING);
 
   ads.setGain(GAIN_TWOTHIRDS);
 
@@ -92,7 +106,6 @@ void setup() {
 void loop() {
   R_usonic_val = analogRead(R_usonic);
   L_usonic_val = analogRead(L_usonic);  
-  L_TOF_val = ads.readADC_SingleEnded(0);
   if(Serial.available() > 0){
     int incomingByte = Serial.read();
     if(incomingByte == 'C' || incomingByte == 'c') {
@@ -142,6 +155,7 @@ void loop() {
 }
 
 void cntrl(){
+  digitalWrite(trig, HIGH);
   lat_pos = 0.1879 * L_TOF_val + 2.1335; // current lateral pos from the left wall in mm
  
   // moving average with 5 samples of lat_pos
