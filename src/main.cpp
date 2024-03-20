@@ -156,7 +156,7 @@ void loop() {
 
 void cntrl(){
   digitalWrite(trig, HIGH);
-  L_TOF_val = ads.getLastConversionResults();
+  if(new_data) L_TOF_val = ads.getLastConversionResults();
   new_data = false;
   lat_pos = 0.1879 * L_TOF_val + 2.1335; // current lateral pos from the left wall in mm
  
