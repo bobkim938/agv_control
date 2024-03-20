@@ -1,7 +1,7 @@
 #include <RS485.h>
 #include <TimerOne.h>
 #include <Arduino.h>
-#include <Adafruit_ADS1X15.h>
+#include <ADS1X15.h>
  
 #define R_usonic A0
 #define L_usonic A1
@@ -10,7 +10,7 @@
 #define intrpt 5
 #define trig 6
 
-Adafruit_ADS1115 ads;
+ADS1115 ADS(0x48);
 
 const uint8_t sendPin  = 8;
 const uint8_t deviceID = 0;
@@ -86,10 +86,8 @@ void setup() {
   pinMode(intrpt, INPUT);
   pinMode(trig, OUTPUT);
 
-  if (!ads.begin()) {
-    Serial.println("Failed to initialize ADS.");
-    while (1);
-  }
+  Wire.begin();
+  ADS.begin();
 }
 
 void loop() {
@@ -155,7 +153,8 @@ void loop() {
 void read_sensors() {
   R_usonic_val = analogRead(R_usonic);
   L_usonic_val = analogRead(L_usonic);  
-  L_TOF_val = ads.readADC_SingleEnded(0);
+  ADS.setGain(0);
+  L_TOF_val = ADS.readADC(0);
   lat_pos = 0.1879 * L_TOF_val + 2.1335; // current lateral pos from the left wall in mm
  
   // moving average with 5 samples of lat_pos
