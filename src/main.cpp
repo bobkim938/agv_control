@@ -167,8 +167,6 @@ void cntrl(){
   current_long_pos_adc = (R_usonic_val + L_usonic_val) * 0.5; // in ADC value
   current_long_pos = current_long_pos_adc * (485.0/1023) + 15.0; // current distance from the wall in mm
   if(lateral_mode) {
-    L_TOF_val = ads.readADC_SingleEnded(0);
-    lat_pos = (0.4903 * L_TOF_val + 1.1139) * 10.0; // current lateral pos from the left wall in mm
     lateral_500();
   } 
   else if(alg) {
