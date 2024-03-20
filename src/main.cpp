@@ -12,7 +12,7 @@
 
 Adafruit_ADS1115 ads;
 
-bool trigger_state = false;
+volatile bool new_data = false;
 
 const uint8_t sendPin  = 8;
 const uint8_t deviceID = 0;
@@ -78,9 +78,8 @@ void longi_245(); // longitudinal control for moving to 245 mm from the glass
 void align(); // angular adjustment
 int search_index(float val, float arr[], int n);
 
-void isr() {
-  L_TOF_val = ads.readADC_SingleEnded(0);
-  digitalWrite(trig, LOW);
+void NewDataReadyISR() {
+  new_data = true;
 }
 
 void setup() {
@@ -93,7 +92,6 @@ void setup() {
 
   pinMode(intrpt, INPUT);
   pinMode(trig, OUTPUT);
-  attachInterrupt(digitalPinToInterrupt(intrpt), isr, RISING);
 
   ads.setGain(GAIN_TWOTHIRDS);
 
@@ -101,6 +99,8 @@ void setup() {
   Serial.println("Failed to initialize ADS.");
   while (1);
   }
+  attachInterrupt(digitalPinToInterrupt(intrpt), NewDataReadyISR, FALLING);
+  ads.startADCReading(ADS1X15_REG_CONFIG_MUX_DIFF_0_1, /*continuous=*/true);
 }
 
 void loop() {
@@ -156,6 +156,8 @@ void loop() {
 
 void cntrl(){
   digitalWrite(trig, HIGH);
+  L_TOF_val = ads.getLastConversionResults();
+  new_data = false;
   lat_pos = 0.1879 * L_TOF_val + 2.1335; // current lateral pos from the left wall in mm
  
   // moving average with 5 samples of lat_pos
