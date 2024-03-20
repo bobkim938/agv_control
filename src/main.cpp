@@ -142,7 +142,7 @@ void loop() {
 }
 
 void cntrl(){
-  lat_pos = (0.4903 * L_TOF_val + 1.1139) * 10.0; // current lateral pos from the left wall in mm
+  lat_pos = 0.1879 * L_TOF_val + 2.1335; // current lateral pos from the left wall in mm
  
   // moving average with 5 samples of lat_pos
   for(int i = 0; i < 4; i++) lat_pos_avg[i] = lat_pos_avg[i+1];
