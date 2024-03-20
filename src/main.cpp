@@ -12,8 +12,6 @@
 
 Adafruit_ADS1115 ads;
 
-volatile bool new_data = false;
-
 const uint8_t sendPin  = 8;
 const uint8_t deviceID = 0;
 RS485 rs485(&Serial1, sendPin);  //uses default deviceID
@@ -68,7 +66,6 @@ float desired_long_pos;
 int current_long_pos_adc = 0;
 float current_long_pos;
  
-void set_target_pos();
 void read_sensors();
 void cntrl();
 void set_cmd(int incomingByte);
@@ -77,10 +74,6 @@ void lateral_500(); // lateral control for moving 500 mm to the right
 void longi_245(); // longitudinal control for moving to 245 mm from the glass
 void align(); // angular adjustment
 int search_index(float val, float arr[], int n);
-
-void NewDataReadyISR() {
-  new_data = true;
-}
 
 void setup() {
   Serial.begin(115200);
@@ -93,22 +86,26 @@ void setup() {
   pinMode(intrpt, INPUT);
   pinMode(trig, OUTPUT);
 
-  ads.setGain(GAIN_TWOTHIRDS);
-
   if (!ads.begin()) {
-  Serial.println("Failed to initialize ADS.");
-  while (1);
+    Serial.println("Failed to initialize ADS.");
+    while (1);
   }
-  attachInterrupt(digitalPinToInterrupt(intrpt), NewDataReadyISR, FALLING);
-  ads.startADCReading(ADS1X15_REG_CONFIG_MUX_DIFF_0_1, /*continuous=*/true);
 }
 
 void loop() {
-  R_usonic_val = analogRead(R_usonic);
-  L_usonic_val = analogRead(L_usonic);  
-  if(Serial.available() > 0){
-    int incomingByte = Serial.read();
-    if(incomingByte == 'C' || incomingByte == 'c') {
+  if (lateral_mode) {
+    lateral_500();
+  }
+  else if (longi_mode) {
+    longi_245();
+  }
+  else if (alg) {
+    align();
+  }
+  else {
+    if (Serial.available() > 0) {
+      int incomingByte = Serial.read();
+      if(incomingByte == 'C' || incomingByte == 'c') {
       char num[6];
       int n = 11;
       Serial.readBytes(num,6);
@@ -125,8 +122,7 @@ void loop() {
       else {
         lateral_mode = false;
       }
-    }
-    else if(incomingByte == 'N' || incomingByte == 'n') {
+    } else if(incomingByte == 'N' || incomingByte == 'n') {
       char num[5];
       int n = 11;
       Serial.readBytes(num,5);
@@ -149,15 +145,16 @@ void loop() {
       for(int i = 0; i < 50; i++) {
         for (int j = 0; j < 11; j++) rs485.write(fast[j]);
       }
+    } else set_cmd(incomingByte);
     }
-    else set_cmd(incomingByte);
   }
+  delayMicroseconds(50000);
 }
 
-void cntrl(){
-  digitalWrite(trig, HIGH);
-  if(new_data) L_TOF_val = ads.getLastConversionResults();
-  new_data = false;
+void read_sensors() {
+  R_usonic_val = analogRead(R_usonic);
+  L_usonic_val = analogRead(L_usonic);  
+  L_TOF_val = ads.readADC_SingleEnded(0);
   lat_pos = 0.1879 * L_TOF_val + 2.1335; // current lateral pos from the left wall in mm
  
   // moving average with 5 samples of lat_pos
@@ -166,67 +163,9 @@ void cntrl(){
   filtered_lat_pos = (lat_pos_avg[0] + lat_pos_avg[1] + lat_pos_avg[2] + lat_pos_avg[3] + lat_pos_avg[4]) / 5;
   current_long_pos_adc = (R_usonic_val + L_usonic_val) * 0.5; // in ADC value
   current_long_pos = current_long_pos_adc * (485.0/1023) + 15.0; // current distance from the wall in mm
-  if(lateral_mode) {
-    lateral_500();
-  } 
-  else if(alg) {
-    align();
-  }
-  else if(longi_mode) {
-    longi_245();
-  }
-  else {
-    manual();
-  }
 }
 
-void set_cmd(int incomingByte) {
-  if (incomingByte == 32) { // space
-    cmd_state = 0;
-  } else if ((incomingByte == 87) || (incomingByte == 119)) { // W or w(forward)
-    cmd_state = 1;
-  } else if ((incomingByte == 83) || (incomingByte == 115)) { // S or s(backward)
-    cmd_state = 2;
-  } else if ((incomingByte == 81) || (incomingByte == 113)) { // Q or q(ccw)
-    cmd_state = 3;
-  } else if ((incomingByte == 69) || (incomingByte == 101)) { // E or e (cw)
-    cmd_state = 4;
-  } else if (incomingByte == 45) { // -(slower)
-    cmd_state = 5;
-  } else if (incomingByte == 61) { // =(faster)
-    cmd_state = 6;
-  } else if ((incomingByte == 65) || (incomingByte == 97)) { // A or a (move left)
-    cmd_state = 7;
-  } else if ((incomingByte == 68) || (incomingByte == 100)) { // D or d (move right)
-    cmd_state = 8;
-  } else if (incomingByte == 77 || incomingByte == 109) { // 'M' or 'm' for alignmnent
-    alg = true;
-  } else if(incomingByte == 'P' || incomingByte == 'p') {
-    // Serial.print('p');
-    Serial.println(filtered_lat_pos);
-    // Serial.print(',');
-    // Serial.println(current_long_pos);
-    Serial.println(L_TOF_val);
-    //Serial.println(R_usonic_val);
-    //Serial.println(L_usonic_val);
-     cmd_state = 0;
-  } else if(incomingByte == '[')  {
-    if (alg) {
-      Serial.println("Aligning");
-    }
-    else if (lateral_mode) {
-      Serial.println("Lateral control");
-    }
-    else if (longi_mode) {
-      Serial.println("Longitudinal control");
-    }
-    else {
-      Serial.println("Finished");
-    }
-  } 
-}
-
-void manual() {
+void cntrl(){
   switch (cmd_state) {
     case 0: // idle
       for (int i = 0; i < 11; i++) rs485.write(idle[i]);
@@ -293,6 +232,53 @@ void manual() {
   }
 }
 
+void set_cmd(int incomingByte) {
+  if (incomingByte == 32) { // space
+    cmd_state = 0;
+  } else if ((incomingByte == 87) || (incomingByte == 119)) { // W or w(forward)
+    cmd_state = 1;
+  } else if ((incomingByte == 83) || (incomingByte == 115)) { // S or s(backward)
+    cmd_state = 2;
+  } else if ((incomingByte == 81) || (incomingByte == 113)) { // Q or q(ccw)
+    cmd_state = 3;
+  } else if ((incomingByte == 69) || (incomingByte == 101)) { // E or e (cw)
+    cmd_state = 4;
+  } else if (incomingByte == 45) { // -(slower)
+    cmd_state = 5;
+  } else if (incomingByte == 61) { // =(faster)
+    cmd_state = 6;
+  } else if ((incomingByte == 65) || (incomingByte == 97)) { // A or a (move left)
+    cmd_state = 7;
+  } else if ((incomingByte == 68) || (incomingByte == 100)) { // D or d (move right)
+    cmd_state = 8;
+  } else if (incomingByte == 77 || incomingByte == 109) { // 'M' or 'm' for alignmnent
+    alg = true;
+  } else if(incomingByte == 'P' || incomingByte == 'p') {
+    read_sensors();
+    // Serial.print('p');
+    Serial.println(filtered_lat_pos);
+    // Serial.print(',');
+    // Serial.println(current_long_pos);
+    Serial.println(L_TOF_val);
+    //Serial.println(R_usonic_val);
+    //Serial.println(L_usonic_val);
+     cmd_state = 0;
+  } else if(incomingByte == '[')  {
+    if (alg) {
+      Serial.println("Aligning");
+    }
+    else if (lateral_mode) {
+      Serial.println("Lateral control");
+    }
+    else if (longi_mode) {
+      Serial.println("Longitudinal control");
+    }
+    else {
+      Serial.println("Finished");
+    }
+  } 
+}
+
 void lateral_500() {
     float error = desired_lat_pos - filtered_lat_pos;
     Serial.println(error);
@@ -320,7 +306,6 @@ void lateral_500() {
       I = 0;
       D = 0;
     }
- 
     else if(filtered_lat_pos > desired_lat_pos) {
       for (int j = 0; j < 1; j++) {
         for (int i = 0; i < 11; i++) rs485.write(left[i]);
