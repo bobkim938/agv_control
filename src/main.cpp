@@ -93,6 +93,7 @@ void setup() {
 }
 
 void loop() {
+  read_sensors();
   if (lateral_mode) {
     lateral_500();
   }
@@ -297,24 +298,22 @@ void lateral_500() {
     current_lat_speed = 0.1 * output / 1500;
 
     int speed_index = search_index(current_lat_speed, speed_table, 10);
-    for(int i = 0; i < speed_index * 2; i++) {
-      for (int j = 0; j < 11; j++) rs485.write(slow[j]);
-    }
+    group = speed_index * 2;
+    cmd_state = 5;
  
     if (output <= 350 && output >= 0 && abs(error) <= 22) { // stop condition
       lateral_mode = false;
+      group = 2;
       I = 0;
       D = 0;
     }
     else if(filtered_lat_pos > desired_lat_pos) {
-      for (int j = 0; j < 1; j++) {
-        for (int i = 0; i < 11; i++) rs485.write(left[i]);
-      }
+      group = 1;
+      cmd_state = 7;
     }
     else if (filtered_lat_pos < desired_lat_pos) {
-      for (int j = 0; j < 1; j++) {
-        for (int i = 0; i < 11; i++) rs485.write(right[i]);
-      }
+      group = 1;
+      cmd_state = 8;
     }
 }
 
@@ -341,20 +340,15 @@ void longi_245() {
  
   if(abs(current_long_pos_adc - desired) > 5) {
     if (current_long_pos_adc > desired) {
-      for (int j = 0; j < group; j++) {
-        for (int i = 0; i < 11; i++) rs485.write(fwd[i]);
-      }
+      cmd_state = 1;
     }
     else if (current_long_pos_adc < desired) {
-      for (int j = 0; j < group; j++) {
-        for (int i = 0; i < 11; i++) rs485.write(bkwd[i]);
-      }
+      cmd_state = 2;
     }
   }
   else {
     longi_mode = false;
     group = 2;
-    Serial.println('D');
   }
 }
 
@@ -376,16 +370,10 @@ void align() {
  
       group = PID/70;
       if (R_usonic_val > L_usonic_val) {
-          for (int j = 0; j < group; j++) {
-            for (int i = 0; i < 11; i++) rs485.write(ccw[i]);
-        }
-        for (int i = 0; i < 11; i++) rs485.write(idle[i]);
+        cmd_state = 3;
       }
       else if (R_usonic_val < L_usonic_val) {
-        for (int j = 0; j < group; j++) {
-          for (int i = 0; i < 11; i++) rs485.write(cw[i]);
-        }
-        for (int i = 0; i < 11; i++) rs485.write(idle[i]);
+        cmd_state = 4;
       }
     }
   else {
