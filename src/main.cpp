@@ -205,6 +205,8 @@ void process_terminal(int incomingByte) { // This function to process the incomi
   else if ((incomingByte == 78) || (incomingByte == 110)) { // N or n (adjust)
     adjustTarget = Serial.parseInt();
     adjust_flag = true; machine_state = true;
+    Serial.print("Sonic: "); Serial.print(current_long_pos); Serial.print('\t'); 
+    Serial.print("Target: "); Serial.println(adjustTarget); 
   }
   else if ((incomingByte == 80) || (incomingByte == 112)) { // P or p (print)
     print_flag = true; machine_state = true;
@@ -230,11 +232,11 @@ void adjust_long() {
         desired = adjustTarget;
     }
 
-    if(abs(adjustTarget - desired) > 5) {
-        if (adjustTarget > desired) {
+    if(abs(current_long_pos - desired) > 5) {
+        if (current_long_pos > desired) {
             cmd_state = 1;
         }
-        else if (adjustTarget < desired) {
+        else if (current_long_pos < desired) {
             cmd_state = 2;
         }
     }
