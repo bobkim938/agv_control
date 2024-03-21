@@ -1,14 +1,11 @@
 #include <Arduino.h>
 #include <TimerOne.h>
-// #include <TimerThree.h>
 #include <RS485.h>
 #include <MovingAverage.h>
-// #include <PID_v1_bc.h>
 #include <ADS1X15.h>
 
 #define R_usonic A0
 #define L_usonic A1
-// #define L_TOF A2
 
 const uint8_t sendPin  = 8;
 const uint8_t deviceID = 0;
@@ -28,24 +25,25 @@ const byte right[11]  = {0x01, 0x06, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0
 bool align_flag, stride_flag, adjust_flag, print_flag, machine_state;
 int cmd_state;
 int adjustTarget;
-double strideTarget, strideTarget_mm, current_long_pos;
-double difference;
+double strideTarget, strideTarget_mm;
+double lTofDiff;
 int lUsonicRead, rUsonicRead, lTofRead;
-double lUsonic, rUsonic, lTof;
-// float current_long_pos, filtered_lat_pos;
+double lUsonic, rUsonic, lTof, Usonic;
 MovingAverage <int, 4> lUsonicFilter;
 MovingAverage <int, 4> rUsonicFilter;
 MovingAverage <int, 4> lTofFilter;
+int align_i, adjust_i = 0;
 
-// double strideOutput, Kp=2, Ki=5, Kd=1;
-// PID stridePID(&lTof, &strideOutput, &strideTarget, Kp, Ki, Kd, DIRECT);
-// function prototypes
-void send_485();
-void read_sensor();
-void stride_control();
-void set_speed(bool speed);
-void process_terminal(int incomingByte);
-void adjust_long();
+
+int UsonicDiff;
+const double magicLabAlign = 1; 
+
+// double magicLabSlow = 5; // equivalent to 1 mm
+// const double magicLabSlow = 75; // equivalent to 1 mm
+// const double magicLabFast = 1850;
+int speed_i;
+bool speed_flag;
+
 
 void setup() { // put your setup code here, to run once:
   Serial.begin(115200);
@@ -59,17 +57,23 @@ void setup() { // put your setup code here, to run once:
   if (!ADS.isConnected()) Serial.println("ADS1115 is not connected");
 }
 
+
+
 void loop() { // put your main code here, to run repeatedly:
   read_sensor();
   if (machine_state) { // true means under auto control
-    if (align_flag) {
-      align_flag = false; machine_state = false;
+    if (align_flag) { // only enter the align_control after the count is reached
+      if (align_i<2) { align_i++; cmd_state = 0; }
+      else { align_i = 0; align_control();
+      }
     }
     if (stride_flag) {
       stride_control();
     }
     if (adjust_flag) {
-      adjust_long();
+      if (adjust_i<1) { adjust_i++; cmd_state = 0; }
+      else { adjust_i = 0; adjust_control();
+      }
     }
     if (print_flag) {
       Serial.print("L: "); Serial.print(lUsonic); Serial.print('\t'); 
@@ -86,7 +90,7 @@ void loop() { // put your main code here, to run repeatedly:
   delayMicroseconds(50000); // TODO Very important 
 }
 
-void send_485() { // This function to send out 485 com to the AGV
+void send_485() { // This function to send out 485 com to the AGV. Don't touch this part!
   switch (cmd_state) {
     case 0: // idle
       for (int i = 0; i < 11; i++) rs485.write(idle[i]);
@@ -132,19 +136,39 @@ void read_sensor() { // This function to read sensor data and average them
   lUsonicRead = lUsonicFilter.add(analogRead(L_usonic)); lUsonic = lUsonicFilter.get();
   rUsonicRead = rUsonicFilter.add(analogRead(R_usonic)); rUsonic = rUsonicFilter.get();
   lTofRead = lTofFilter.add(ADS.readADC(0)); lTof = lTofFilter.get();   
-  current_long_pos = (lUsonic + rUsonic) * 0.5;
+  Usonic = (lUsonic + rUsonic) * 0.5;
 }
 
-// double strideAllowance = 5; // equivalent to 1 mm
-double strideAllowance = 70; // equivalent to 1 mm
-double magicNumber = 1850;
-int speed_i;
-bool speed_flag;
+
+void align_control() {
+  UsonicDiff = lUsonic - rUsonic;
+  if (UsonicDiff > (magicLabAlign*1.0)) { // should rotate cw
+    cmd_state = 4;
+  }
+  else if (UsonicDiff < (magicLabAlign*-1.0)) { // should rotate ccw
+    cmd_state = 3; 
+  }
+  else { // should not move
+    cmd_state = 0; align_flag = false; machine_state = false;
+  }
+  Serial.print("L: "); Serial.print(lUsonic); Serial.print('\t'); 
+  Serial.print("R: "); Serial.println(rUsonic); 
+}
+
+
+
+const double magicLabStride = 5; // equivalent to 1 mm
 
 void stride_control() {
-  difference = strideTarget - lTof;
-  if (difference > (strideAllowance*1.0)) { // should move right
-    if (difference > (magicNumber*1.0)) { // high speed
+  lTofDiff = strideTarget - lTof;
+
+
+  if (align_i<2) { align_i++; cmd_state = 0; }
+  else { align_i = 0; align_control();
+
+
+  if (lTofDiff > (magicLabStride*1.0)) { // should move right
+    if (lTofDiff > (magicLabStride*1.0)) { // high speed
       if (!speed_flag) set_speed(true);
       else cmd_state = 8; 
     }
@@ -153,8 +177,8 @@ void stride_control() {
       else cmd_state = 8; 
     }
   }
-  else if (difference < (strideAllowance*-1.0)) { // should move left
-    if (difference < (magicNumber*-1.0)) { // high speed
+  else if (lTofDiff < (magicLabStride*-1.0)) { // should move left
+    if (lTofDiff < (magicLabStride*-1.0)) { // high speed
       if (!speed_flag) set_speed(true);
       else cmd_state = 7;
     }
@@ -168,6 +192,76 @@ void stride_control() {
   }
   Serial.print("ToF: "); Serial.print(lTof); Serial.print('\t'); 
   Serial.print("Target: "); Serial.println(strideTarget); 
+}
+
+// void stride_control() {
+//   lTofDiff = strideTarget - lTof;
+//   if (lTofDiff > (magicLabSlow*1.0)) { // should move right
+//     if (lTofDiff > (magicLabFast*1.0)) { // high speed
+//       if (!speed_flag) set_speed(true);
+//       else cmd_state = 8; 
+//     }
+//     else { // low speed
+//       if (speed_flag) set_speed(false);
+//       else cmd_state = 8; 
+//     }
+//   }
+//   else if (lTofDiff < (magicLabSlow*-1.0)) { // should move left
+//     if (lTofDiff < (magicLabFast*-1.0)) { // high speed
+//       if (!speed_flag) set_speed(true);
+//       else cmd_state = 7;
+//     }
+//     else { // low speed
+//       if (speed_flag) set_speed(false);
+//       else cmd_state = 7;
+//     }
+//   }
+//   else { //should not move
+//     cmd_state = 0; stride_flag = false; machine_state = false;
+//   }
+//   Serial.print("ToF: "); Serial.print(lTof); Serial.print('\t'); 
+//   Serial.print("Target: "); Serial.println(strideTarget); 
+// }
+
+int desired;
+
+void adjust_control() {
+    int UsonicDiff = adjustTarget - Usonic;
+    if(UsonicDiff > 55) { // AGV pos < desired
+        desired = adjustTarget - 45;
+    }
+    else if(UsonicDiff > 10 && UsonicDiff <= 55) { // AGV pos < desired
+        desired = adjustTarget - 30;
+    }
+    else if (UsonicDiff >=3 && UsonicDiff <= 10) {
+        desired = adjustTarget - 5;
+    }
+    else if (UsonicDiff <= -3 && UsonicDiff >= -10) {
+        desired = adjustTarget + 5;
+    }
+    else if (UsonicDiff < -10 && UsonicDiff >= -55) { // AGV pos > desired
+        desired = adjustTarget + 30;
+    }
+    else if (UsonicDiff < -55) { // AGV pos < desired
+        desired = adjustTarget + 45;
+    }
+    else {
+        desired = adjustTarget;
+    }
+    if(abs(Usonic - desired) > 1) {
+        if (Usonic > desired) {
+            cmd_state = 1;
+        }
+        else if (Usonic < desired) {
+            cmd_state = 2;
+        }
+    }
+    else {
+        adjust_flag = false;
+        machine_state = false;
+    }
+  Serial.print("L: "); Serial.print(lUsonic); Serial.print('\t'); 
+  Serial.print("R: "); Serial.println(rUsonic); 
 }
 
 void set_speed(bool speed) {
@@ -205,43 +299,10 @@ void process_terminal(int incomingByte) { // This function to process the incomi
   else if ((incomingByte == 78) || (incomingByte == 110)) { // N or n (adjust)
     adjustTarget = Serial.parseInt();
     adjust_flag = true; machine_state = true;
-    Serial.print("Sonic: "); Serial.print(current_long_pos); Serial.print('\t'); 
+    Serial.print("Sonic: "); Serial.print(Usonic); Serial.print('\t'); 
     Serial.print("Target: "); Serial.println(adjustTarget); 
   }
   else if ((incomingByte == 80) || (incomingByte == 112)) { // P or p (print)
     print_flag = true; machine_state = true;
   }
-}
-
-void adjust_long() {
-    int desired;
-    int dif = adjustTarget - current_long_pos;
-    if(dif > 55) { // AGV pos < desired
-        desired = adjustTarget - 20;
-    }
-    else if(dif > 10 && dif <= 55) { // AGV pos < desired
-        desired = adjustTarget - 15;
-    }
-    else if (dif < -10 && dif >= -55) { // AGV pos > desired
-        desired = adjustTarget + 15;
-    }
-    else if (dif < -55) { // AGV pos < desired
-        desired = adjustTarget + 20;
-    }
-    else {
-        desired = adjustTarget;
-    }
-
-    if(abs(current_long_pos - desired) > 5) {
-        if (current_long_pos > desired) {
-            cmd_state = 1;
-        }
-        else if (current_long_pos < desired) {
-            cmd_state = 2;
-        }
-    }
-    else {
-        adjust_flag = false;
-        machine_state = false;
-    }
 }
