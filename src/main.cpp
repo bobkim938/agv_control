@@ -274,14 +274,38 @@ void process_terminal(int incomingByte) { // This function to process the incomi
     align_flag = true; machine_state = true;
   }
   else if ((incomingByte == 67) || (incomingByte == 99)) { // C or c (stride)
-    strideTarget = Serial.parseInt();
-    stride_flag = true; machine_state = true;
+    char num[7]; // 5 digits to be received with ,
+    int i = 0;
+    Serial.readBytes(num, 7);
+    for(i; i<7; i++) {
+      if(num[i] == ',') break;
+    }
+    num[i] = '\0';
+    strideTarget = atoi(num);
+    if (strideTarget < 100) {
+      stride_flag = false; machine_state = false;
+    }
+    else if(strideTarget >= 100 && strideTarget <= 26500) {
+      stride_flag = true; machine_state = true;
+    }
     // Serial.print("ToF: "); Serial.print(lTof); Serial.print('\t'); 
     // Serial.print("Target: "); Serial.println(strideTarget); 
   }
   else if ((incomingByte == 78) || (incomingByte == 110)) { // N or n (adjust)
-    adjustTarget = Serial.parseInt();
-    adjust_flag = true; machine_state = true;
+    char num[6];
+    int i = 0;
+    Serial.readBytes(num, 6);
+    for(i; i<6; i++) {
+      if(num[i] == ',') break;
+    }
+    num[i] = '\0';
+    adjustTarget = atoi(num);
+    if (adjustTarget < 100) {
+      adjust_flag = false; machine_state = false;
+    }
+    else if(adjustTarget >= 100 && adjustTarget <= 1000) {
+      adjust_flag = true; machine_state = true;
+    }
     // Serial.print("Sonic: "); Serial.print(Usonic); Serial.print('\t'); 
     // Serial.print("Target: "); Serial.println(adjustTarget); 
   }
