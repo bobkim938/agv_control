@@ -14,7 +14,7 @@ void align_control();
 void stride_control();
 void adjust_control();
 void set_speed(bool speed);
-void process_terminal(int incomingByte);
+void process_terminal(int incomingByte, int target = 0);
 
 const uint8_t sendPin  = 8;
 RS485 rs485(&Serial1, sendPin);  // uses default deviceID
@@ -33,8 +33,7 @@ const uint8_t magicLabAlign = 1;
 const uint8_t magicLabStride = 5; // equivalent to 1 mm
 const uint8_t magicLabAdjust = 2;
 
-bool align_flag, stride_flag, adjust_flag, printTOF_flag, printSONIC_flag, speed_flag, print_state_flag, machine_state;
-bool stop_flag = false;
+bool align_flag, stride_flag, adjust_flag, printTOF_flag, printSONIC_flag, speed_flag, print_state_flag;
 uint8_t align_i, stride_i, adjust_i, speed_i, cmd_state;
 int adjustTarget;
 int lUsonicRead, rUsonicRead, lTofRead;
@@ -59,47 +58,38 @@ void setup() { // put your setup code here, to run once:
 
 void loop() { // put your main code here, to run repeatedly:
   read_sensor();
-  if(stop_flag) { // Emergency Stop
-    cmd_state = 0;
-    machine_state = false;
-    align_flag = false;
-    stride_flag = false;
-    adjust_flag = false;
-    stop_flag = false;
+  if (align_flag) align_control(); 
+  // if (align_i<2) { align_i++; cmd_state = 0; }
+  // else { align_i = 0; align_control();
+  if (stride_flag) stride_control();
+  if (adjust_flag) adjust_control();
+  if (printTOF_flag) {
+    //Serial.print("L: "); Serial.print(lUsonic); Serial.print('\t'); 
+    //Serial.print("R: "); Serial.print(rUsonic); Serial.print('\t'); 
+    //Serial.print("ToF: "); Serial.println(lTof);
+    Serial.print('p');
+    Serial.print(lTof);
+    Serial.print(',');
+    printTOF_flag = false; 
   }
-  if (machine_state) { // true means under auto control
-    if (align_flag) align_control(); 
-      // if (align_i<2) { align_i++; cmd_state = 0; }
-      // else { align_i = 0; align_control();
-    if (stride_flag) stride_control();
-    if (adjust_flag) adjust_control();
-    if (printTOF_flag) {
-      //Serial.print("L: "); Serial.print(lUsonic); Serial.print('\t'); 
-      //Serial.print("R: "); Serial.print(rUsonic); Serial.print('\t'); 
-      //Serial.print("ToF: "); Serial.println(lTof);
-      Serial.print('p');
-      Serial.print(lTof);
-      Serial.print(',');
-      printTOF_flag = false; machine_state = false;
-    }
-    if (printSONIC_flag) {
-      Serial.print(lUsonic);
-      Serial.print(' ');
-      Serial.print(rUsonic);
-      Serial.print(',');
-      printSONIC_flag = false; machine_state = false;
-    }
-    if (print_state_flag) {
-      if(!align_flag && !stride_flag && !adjust_flag) Serial.print("okla");
-      else Serial.print("move");
-      print_state_flag = false; machine_state = false;
-    }
+  if (printSONIC_flag) {
+    Serial.print(lUsonic);
+    Serial.print(' ');
+    Serial.print(rUsonic);
   }
-  else { // false means under manual control
-    if (Serial.available() <= 0) return;
-    int incomingByte = Serial.read();
-    process_terminal(incomingByte);
+  if (print_state_flag) {
+    if(!align_flag && !stride_flag && !adjust_flag) Serial.print("okla");
+    else Serial.print("move");
+    print_state_flag = false; 
   }
+  if (Serial.available() <= 0) return;
+  char buffer[8];
+  int i = Serial.readBytesUntil(44, buffer, 8);
+  *(buffer + i) = '\0';
+  char* tar = buffer + 1;
+  int target = atoi(tar);
+  process_terminal(*buffer, target);
+
   delayMicroseconds(50000); // TODO Very important 
 }
 
@@ -169,7 +159,7 @@ void align_control() {
     }
     else { // should not move
     //  Serial.println("Align done"); // reply back to GUI
-      cmd_state = 0; align_flag = false; machine_state = false;
+      cmd_state = 0; align_flag = false;
     }
     // Serial.print("L: "); Serial.print(lUsonic); Serial.print('\t'); 
     // Serial.print("R: "); Serial.println(rUsonic); 
@@ -214,7 +204,7 @@ void stride_control() {
   }
   else { //should not move
   //  Serial.println("Stride done"); // reply back to GUI
-    cmd_state = 0; stride_flag = false; machine_state = false;
+    cmd_state = 0; stride_flag = false;
   }
   // Serial.print("ToF: "); Serial.print(lTof); Serial.print('\t'); 
   // Serial.print("Target: "); Serial.println(strideTarget); 
@@ -243,7 +233,7 @@ void adjust_control() {
   } 
   else { //should not move
   //  Serial.println("Adjust done"); // reply back to GUI
-    cmd_state = 0; adjust_flag = false; machine_state = false;
+    cmd_state = 0; adjust_flag = false; 
   }
   // Serial.print("L: "); Serial.print(lUsonic); Serial.print('\t'); 
   // Serial.print("R: "); Serial.println(rUsonic); 
@@ -260,8 +250,17 @@ void set_speed(bool speed) {
   }
 }
 
-void process_terminal(int incomingByte) { // This function to process the incoming terminal command
-  if (incomingByte == 32) cmd_state = 0; // space (idle)
+void process_terminal(int incomingByte, int target = 0) { // This function to process the incoming terminal command
+  if (incomingByte == 32) { // space (idle)
+    cmd_state = 0; 
+    align_flag = false;
+    stride_flag = false;
+    adjust_flag = false;
+    speed_flag = false;
+    printTOF_flag = false;
+    print_state_flag = false;
+    Serial.println("Stop");
+  }
   else if ((incomingByte == 87) || (incomingByte == 119)) cmd_state = 1; // W or w (forward)
   else if ((incomingByte == 83) || (incomingByte == 115)) cmd_state = 2; // S or s (backward)
   else if ((incomingByte == 81) || (incomingByte == 113)) cmd_state = 3; // Q or q (ccw)
@@ -271,54 +270,38 @@ void process_terminal(int incomingByte) { // This function to process the incomi
   else if ((incomingByte == 65) || (incomingByte == 97)) cmd_state = 7; // A or a (left)
   else if ((incomingByte == 68) || (incomingByte == 100)) cmd_state = 8; // D or d (right)
   else if ((incomingByte == 77) || (incomingByte == 109)) { // M or m (align)
-    align_flag = true; machine_state = true;
+    align_flag = true; 
   }
   else if ((incomingByte == 67) || (incomingByte == 99)) { // C or c (stride)
-    char num[7]; // 5 digits to be received with ,
-    int i = 0;
-    Serial.readBytes(num, 7);
-    for(i; i<7; i++) {
-      if(num[i] == ',') break;
+    if(target <= 18655 && target >= 521) { // receiving range of 100 - 3500 mm only
+      strideTarget = target;
+      // valid if 15
+      stride_flag = true;
+      Serial.print("ToF: "); Serial.print(lTof); Serial.print('\t'); 
+      Serial.print("Target: "); Serial.println(strideTarget); 
     }
-    num[i] = '\0';
-    strideTarget = atoi(num);
-    if (strideTarget < 100) {
-      stride_flag = false; machine_state = false;
+    else {
+      stride_flag = false;
     }
-    else if(strideTarget >= 100 && strideTarget <= 26500) {
-      stride_flag = true; machine_state = true;
-    }
-    // Serial.print("ToF: "); Serial.print(lTof); Serial.print('\t'); 
-    // Serial.print("Target: "); Serial.println(strideTarget); 
   }
   else if ((incomingByte == 78) || (incomingByte == 110)) { // N or n (adjust)
-    char num[6];
-    int i = 0;
-    Serial.readBytes(num, 6);
-    for(i; i<6; i++) {
-      if(num[i] == ',') break;
+    if(target <= 1002 && target >= 179) { // receiving range of 100 - 490 mm only
+      adjustTarget = target;
+      adjust_flag = true; 
+      Serial.print("Sonic: "); Serial.print(Usonic); Serial.print('\t'); 
+      Serial.print("Target: "); Serial.println(adjustTarget); 
     }
-    num[i] = '\0';
-    adjustTarget = atoi(num);
-    if (adjustTarget < 100) {
-      adjust_flag = false; machine_state = false;
+    else {
+      adjust_flag = false;
     }
-    else if(adjustTarget >= 100 && adjustTarget <= 1000) {
-      adjust_flag = true; machine_state = true;
-    }
-    // Serial.print("Sonic: "); Serial.print(Usonic); Serial.print('\t'); 
-    // Serial.print("Target: "); Serial.println(adjustTarget); 
   }
-  else if ((incomingByte == 80) || (incomingByte == 112)) { // P or p (print TOF)
-    printTOF_flag = true; machine_state = true;
+  else if ((incomingByte == 80) || (incomingByte == 112)) { // P or p (printTOF)
+    printTOF_flag = true; 
   }
-  else if (incomingByte == 'I' || incomingByte == 'i') { // I or i (print Sonic)
-    printSONIC_flag = true; machine_state = true;
+  else if(incomingByte == '[') { // [ (print current state)
+    print_state_flag = true;
   }
-  else if(incomingByte == '[') { // [ (print state)
-    print_state_flag = true; machine_state = true;
-  }
-  else if (incomingByte == ' ') { // space (stop)
-    stop_flag = true;
+  else if(incomingByte == 'O' || incomingByte == 'o') { // O or o (print sonic)
+    printSONIC_flag = true;
   }
 }
