@@ -58,6 +58,15 @@ void setup() { // put your setup code here, to run once:
 
 void loop() { // put your main code here, to run repeatedly:
   read_sensor();
+  
+  if (Serial.available() <= 0) return;
+  char buffer[8];
+  int i = Serial.readBytesUntil(44, buffer, 8);
+  *(buffer + i) = '\0';
+  char* tar = buffer + 1;
+  int target = atoi(tar);
+  process_terminal(*buffer, target);
+
   if (align_flag) align_control(); 
   // if (align_i<2) { align_i++; cmd_state = 0; }
   // else { align_i = 0; align_control();
@@ -84,14 +93,6 @@ void loop() { // put your main code here, to run repeatedly:
     else Serial.print("move");
     print_state_flag = false; 
   }
-  if (Serial.available() <= 0) return;
-  char buffer[8];
-  int i = Serial.readBytesUntil(44, buffer, 8);
-  *(buffer + i) = '\0';
-  char* tar = buffer + 1;
-  int target = atoi(tar);
-  process_terminal(*buffer, target);
-
   delayMicroseconds(50000); // TODO Very important 
 }
 
