@@ -33,7 +33,8 @@ const uint8_t magicLabAlign = 1;
 const uint8_t magicLabStride = 5; // equivalent to 1 mm
 const uint8_t magicLabAdjust = 2;
 
-bool align_flag, stride_flag, adjust_flag, print_flag, speed_flag, print_state_flag, machine_state;
+bool align_flag, stride_flag, adjust_flag, printTOF_flag, printSONIC_flag, speed_flag, print_state_flag, machine_state;
+bool stop_flag = false;
 uint8_t align_i, stride_i, adjust_i, speed_i, cmd_state;
 int adjustTarget;
 int lUsonicRead, rUsonicRead, lTofRead;
@@ -58,20 +59,35 @@ void setup() { // put your setup code here, to run once:
 
 void loop() { // put your main code here, to run repeatedly:
   read_sensor();
+  if(stop_flag) { // Emergency Stop
+    cmd_state = 0;
+    machine_state = false;
+    align_flag = false;
+    stride_flag = false;
+    adjust_flag = false;
+    stop_flag = false;
+  }
   if (machine_state) { // true means under auto control
     if (align_flag) align_control(); 
       // if (align_i<2) { align_i++; cmd_state = 0; }
       // else { align_i = 0; align_control();
     if (stride_flag) stride_control();
     if (adjust_flag) adjust_control();
-    if (print_flag) {
+    if (printTOF_flag) {
       //Serial.print("L: "); Serial.print(lUsonic); Serial.print('\t'); 
       //Serial.print("R: "); Serial.print(rUsonic); Serial.print('\t'); 
       //Serial.print("ToF: "); Serial.println(lTof);
       Serial.print('p');
       Serial.print(lTof);
       Serial.print(',');
-      print_flag = false; machine_state = false;
+      printTOF_flag = false; machine_state = false;
+    }
+    if (printSONIC_flag) {
+      Serial.print(lUsonic);
+      Serial.print(' ');
+      Serial.print(rUsonic);
+      Serial.print(',');
+      printSONIC_flag = false; machine_state = false;
     }
     if (print_state_flag) {
       if(!align_flag && !stride_flag && !adjust_flag) Serial.print("okla");
@@ -269,10 +285,16 @@ void process_terminal(int incomingByte) { // This function to process the incomi
     // Serial.print("Sonic: "); Serial.print(Usonic); Serial.print('\t'); 
     // Serial.print("Target: "); Serial.println(adjustTarget); 
   }
-  else if ((incomingByte == 80) || (incomingByte == 112)) { // P or p (print)
-    print_flag = true; machine_state = true;
+  else if ((incomingByte == 80) || (incomingByte == 112)) { // P or p (print TOF)
+    printTOF_flag = true; machine_state = true;
   }
-  else if(incomingByte == '[') {
+  else if (incomingByte == 'I' || incomingByte == 'i') { // I or i (print Sonic)
+    printSONIC_flag = true; machine_state = true;
+  }
+  else if(incomingByte == '[') { // [ (print state)
     print_state_flag = true; machine_state = true;
+  }
+  else if (incomingByte == ' ') { // space (stop)
+    stop_flag = true;
   }
 }
