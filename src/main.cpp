@@ -76,6 +76,8 @@ void loop() { // put your main code here, to run repeatedly:
     Serial.print(lUsonic);
     Serial.print(' ');
     Serial.print(rUsonic);
+    Serial.print(',');
+    printSONIC_flag = false;
   }
   if (print_state_flag) {
     if(!align_flag && !stride_flag && !adjust_flag) Serial.print("okla");
