@@ -58,7 +58,7 @@ void setup() { // put your setup code here, to run once:
 
 void loop() { // put your main code here, to run repeatedly:
   read_sensor();
-  
+
   if (Serial.available() <= 0) return;
   char buffer[8];
   int i = Serial.readBytesUntil(44, buffer, 8);
@@ -280,8 +280,10 @@ void process_terminal(int incomingByte, int target = 0) { // This function to pr
       strideTarget = target;
       // valid if 15
       stride_flag = true;
-      Serial.print("ToF: "); Serial.print(lTof); Serial.print('\t'); 
-      Serial.print("Target: "); Serial.println(strideTarget); 
+      Serial.print('c');
+      Serial.print(target);
+      // Serial.print("ToF: "); Serial.print(lTof); Serial.print('\t'); 
+      // Serial.print("Target: "); Serial.println(strideTarget); 
     }
     else {
       stride_flag = false;
@@ -291,8 +293,10 @@ void process_terminal(int incomingByte, int target = 0) { // This function to pr
     if(target <= 1002 && target >= 179) { // receiving range of 100 - 490 mm only
       adjustTarget = target;
       adjust_flag = true; 
-      Serial.print("Sonic: "); Serial.print(Usonic); Serial.print('\t'); 
-      Serial.print("Target: "); Serial.println(adjustTarget); 
+      Serial.print('n');
+      Serial.print(target);
+      // Serial.print("Sonic: "); Serial.print(Usonic); Serial.print('\t'); 
+      // Serial.print("Target: "); Serial.println(adjustTarget); 
     }
     else {
       adjust_flag = false;
