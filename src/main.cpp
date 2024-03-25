@@ -6,6 +6,7 @@
 
 #define R_usonic A0
 #define L_usonic A1
+#define R_tof A3
 
 // Emergency Stop Interrupt
 const uint8_t interruptPin = 3;
@@ -43,15 +44,16 @@ const uint8_t magicLabAdjust = 2;
 bool align_flag, stride_flag, adjust_flag, printTOF_flag, printSONIC_flag, speed_flag, print_state_flag;
 uint8_t align_i, stride_i, adjust_i, speed_i, cmd_state, adjust_speed_i = 0;
 int adjustTarget;
-int lUsonicRead, rUsonicRead, lTofRead;
+int lUsonicRead, rUsonicRead, lTofRead, rTofRead;
 int lUsonic, rUsonic, Usonic, UsonicDiff;
-unsigned long lTof, strideTarget;
+unsigned long lTof, strideTarget, rTof;
 long lTofDiff;
 bool adjust_lowest = false;
 unsigned long prev_time;
 MovingAverage <int, 4> lUsonicFilter;
 MovingAverage <int, 4> rUsonicFilter;
 MovingAverage <int, 4> lTofFilter;
+MovingAverage<int, 4> rTofFilter;
 
 void estop() { // interrupt for estop pressed, check for debounce
   delayMicroseconds(5);
@@ -194,6 +196,7 @@ void read_sensor() { // This function to read sensor data and average them
   rUsonicRead = rUsonicFilter.add(analogRead(R_usonic)); rUsonic = rUsonicFilter.get();
   lTofRead = lTofFilter.add(ADS.readADC(0)); lTof = lTofFilter.get();   
   Usonic = (lUsonic + rUsonic) * 0.5;
+  rTofRead = rTofFilter.add(analogRead(R_tof)); rTof = rTofFilter.get();
 }
 
 void align_control() {
