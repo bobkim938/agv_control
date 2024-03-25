@@ -146,44 +146,46 @@ void loop() { // put your main code here, to run repeatedly:
 
 
 void send_485() { // This function to send out 485 com to the AGV. Don't touch this part!
-  switch (cmd_state) {
-    case 0: // idle
-      for (int i = 0; i < 11; i++) rs485.write(idle[i]);
-      break;
-    case 1: // forward
-      for (int j = 0; j < 1; j++) for (int i = 0; i < 11; i++) rs485.write(fwd[i]);
-      cmd_state = 0;
-      break;
-    case 2: // backward
-      for (int j = 0; j < 1; j++) for (int i = 0; i < 11; i++) rs485.write(bkwd[i]);
-      cmd_state = 0;
-      break;
-    case 3: // ccw
-      for (int j = 0; j < 1; j++) for (int i = 0; i < 11; i++) rs485.write(ccw[i]);
-      cmd_state = 0;
-      break;
-    case 4: // cw
-      for (int j = 0; j < 1; j++) for (int i = 0; i < 11; i++) rs485.write(cw[i]);
-      cmd_state = 0;
-      break;
-    case 5: // slower
-      for (int j = 0; j < 1; j++) for (int i = 0; i < 11; i++) rs485.write(slow[i]);
-      cmd_state = 0;
-      break;
-    case 6: // faster
-      for (int j = 0; j < 1; j++) for (int i = 0; i < 11; i++) rs485.write(fast[i]);
-      cmd_state = 0;
-      break;
-    case 7: // left
-      for (int j = 0; j < 1; j++) for (int i = 0; i < 11; i++) rs485.write(left[i]);
-      cmd_state = 0;
-      break;
-    case 8: // right
-      for (int j = 0; j < 1; j++) for (int i = 0; i < 11; i++) rs485.write(right[i]);
-      cmd_state = 0;
-      break;  
-    default:
-      break;
+  if(!estopFlag) {
+    switch (cmd_state) {
+      case 0: // idle
+        for (int i = 0; i < 11; i++) rs485.write(idle[i]);
+        break;
+      case 1: // forward
+        for (int j = 0; j < 1; j++) for (int i = 0; i < 11; i++) rs485.write(fwd[i]);
+        cmd_state = 0;
+        break;
+      case 2: // backward
+        for (int j = 0; j < 1; j++) for (int i = 0; i < 11; i++) rs485.write(bkwd[i]);
+        cmd_state = 0;
+        break;
+      case 3: // ccw
+        for (int j = 0; j < 1; j++) for (int i = 0; i < 11; i++) rs485.write(ccw[i]);
+        cmd_state = 0;
+        break;
+      case 4: // cw
+        for (int j = 0; j < 1; j++) for (int i = 0; i < 11; i++) rs485.write(cw[i]);
+        cmd_state = 0;
+        break;
+      case 5: // slower
+        for (int j = 0; j < 1; j++) for (int i = 0; i < 11; i++) rs485.write(slow[i]);
+        cmd_state = 0;
+        break;
+      case 6: // faster
+        for (int j = 0; j < 1; j++) for (int i = 0; i < 11; i++) rs485.write(fast[i]);
+        cmd_state = 0;
+        break;
+      case 7: // left
+        for (int j = 0; j < 1; j++) for (int i = 0; i < 11; i++) rs485.write(left[i]);
+        cmd_state = 0;
+        break;
+      case 8: // right
+        for (int j = 0; j < 1; j++) for (int i = 0; i < 11; i++) rs485.write(right[i]);
+        cmd_state = 0;
+        break;  
+      default:
+        break;
+    }
   }
 }
 
