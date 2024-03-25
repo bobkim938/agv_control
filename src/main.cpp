@@ -7,6 +7,10 @@
 #define R_usonic A0
 #define L_usonic A1
 
+// Emergency Stop Interrupt
+const uint8_t interruptPin = 3;
+volatile bool estopFlag;
+
 // function prototypes
 void send_485();
 void read_sensor();
@@ -15,6 +19,9 @@ void stride_control();
 void adjust_control();
 void set_speed(bool speed);
 void process_terminal(int incomingByte, int target = 0);
+void speed_to_lowest();
+void estop(); // interrupt for estop pressed, check for debounce
+void unstop(); 
 
 const uint8_t sendPin  = 8;
 RS485 rs485(&Serial1, sendPin);  // uses default deviceID
@@ -34,20 +41,38 @@ const uint8_t magicLabStride = 5; // equivalent to 1 mm
 const uint8_t magicLabAdjust = 2;
 
 bool align_flag, stride_flag, adjust_flag, printTOF_flag, printSONIC_flag, speed_flag, print_state_flag;
-uint8_t align_i, stride_i, adjust_i, speed_i, cmd_state;
+uint8_t align_i, stride_i, adjust_i, speed_i, cmd_state, adjust_speed_i = 0;
 int adjustTarget;
 int lUsonicRead, rUsonicRead, lTofRead;
 int lUsonic, rUsonic, Usonic, UsonicDiff;
 unsigned long lTof, strideTarget;
 long lTofDiff;
+bool adjust_lowest = false;
+unsigned long prev_time;
 MovingAverage <int, 4> lUsonicFilter;
 MovingAverage <int, 4> rUsonicFilter;
 MovingAverage <int, 4> lTofFilter;
+
+void estop() { // interrupt for estop pressed, check for debounce
+  delayMicroseconds(5);
+  while (digitalRead(interruptPin) == 0) { estopFlag = true; break; }
+  detachInterrupt(digitalPinToInterrupt(interruptPin));
+  attachInterrupt(digitalPinToInterrupt(interruptPin), unstop, HIGH);
+}
+
+void unstop() { // interrupt for estop released, check for debounce
+  delayMicroseconds(50);
+  while (digitalRead(interruptPin) == 1) { estopFlag = false; break; }
+  detachInterrupt(digitalPinToInterrupt(interruptPin));
+  attachInterrupt(digitalPinToInterrupt(interruptPin), estop, LOW);
+}
 
 void setup() { // put your setup code here, to run once:
   Serial.begin(115200);
   Serial1.begin(9600);
   while (!Serial); 
+  pinMode(interruptPin, INPUT_PULLUP); //Inverts the behavior of the INPUT mode, HIGH means off, LOW means on
+  attachInterrupt(digitalPinToInterrupt(interruptPin), estop, LOW);
   Timer1.initialize(50000); // 50 milliseconds
   Timer1.attachInterrupt(send_485); 
   Wire.begin();
@@ -58,20 +83,24 @@ void setup() { // put your setup code here, to run once:
 
 void loop() { // put your main code here, to run repeatedly:
   read_sensor();
-
-  if (Serial.available() <= 0) return;
-  char buffer[8];
-  int i = Serial.readBytesUntil(44, buffer, 8);
-  *(buffer + i) = '\0';
-  char* tar = buffer + 1;
-  int target = atoi(tar);
-  process_terminal(*buffer, target);
-
+  if(estopFlag) {
+    cmd_state = 0;
+    align_flag = false;
+    stride_flag = false;
+    adjust_flag = false;
+    speed_flag = false;
+    printTOF_flag = false;
+    print_state_flag = false;
+    Serial.println("Stop");
+  }
   if (align_flag) align_control(); 
   // if (align_i<2) { align_i++; cmd_state = 0; }
   // else { align_i = 0; align_control();
   if (stride_flag) stride_control();
-  if (adjust_flag) adjust_control();
+  if (adjust_flag) {
+    if(!adjust_lowest) speed_to_lowest();
+    else adjust_control();
+  }
   if (printTOF_flag) {
     //Serial.print("L: "); Serial.print(lUsonic); Serial.print('\t'); 
     //Serial.print("R: "); Serial.print(rUsonic); Serial.print('\t'); 
@@ -90,11 +119,30 @@ void loop() { // put your main code here, to run repeatedly:
   }
   if (print_state_flag) {
     if(!align_flag && !stride_flag && !adjust_flag) Serial.print("okla");
-    else Serial.print("move");
+    else if (align_flag || stride_flag || adjust_flag) Serial.print("move");
     print_state_flag = false; 
   }
+
+  if (Serial.available() <= 0) return;
+  int incomingByte = Serial.read();
+  if (incomingByte == 'C' || incomingByte == 'c' || incomingByte == 'N' || incomingByte == 'n') {
+    char buffer[7];
+    Serial.readBytes(buffer, 7);
+    int i = 0;
+    for(i; i < 7; i++) {
+      if(buffer[i] == ',') break;
+    }
+    if(i == 7) {
+      return;
+    }
+    *(buffer + i) = '\0';
+    int target = atoi(buffer);
+    process_terminal(incomingByte, target);
+  }
+  else process_terminal(incomingByte);
   delayMicroseconds(50000); // TODO Very important 
 }
+
 
 
 void send_485() { // This function to send out 485 com to the AGV. Don't touch this part!
@@ -148,7 +196,7 @@ void read_sensor() { // This function to read sensor data and average them
 
 void align_control() {
   UsonicDiff = lUsonic - rUsonic;
-  if (align_i<2) { // only enter the align_control after the count is reached
+  if (align_i<1) { // only enter the align_control after the count is reached
     align_i++; 
     cmd_state = 0; 
   }
@@ -175,7 +223,7 @@ void stride_control() {
     if (lTofDiff < (magicLabStride*40*1.0)) { //crawling speed
       if (speed_flag) set_speed(false);
       else {
-        if (stride_i<2) { stride_i++; cmd_state = 0; }
+        if (stride_i<1) { stride_i++; cmd_state = 0; }
         else { stride_i = 0; cmd_state = 8; } 
       }
     }
@@ -200,7 +248,7 @@ void stride_control() {
     else { //crawling speed
       if (speed_flag) set_speed(false);
       else {
-        if (stride_i<2) { stride_i++; cmd_state = 0; }
+        if (stride_i<1) { stride_i++; cmd_state = 0; }
         else { stride_i = 0; cmd_state = 7; } 
       }
     }
@@ -215,28 +263,54 @@ void stride_control() {
 
 void adjust_control() {
   int UsonicDiff = abs(adjustTarget - Usonic);
-  set_speed(false);
-  if(abs(Usonic - adjustTarget) > magicLabAdjust){
-    if(Usonic > adjustTarget) { // shall move forward
-      if(UsonicDiff < 75) { // crawling speed
-        if (adjust_i<2) { adjust_i++; cmd_state = 0; }
-        else {adjust_i = 0; cmd_state = 1;}
-      } else { // low speed
-          cmd_state = 1;
+  if(Usonic > 270 && Usonic < 1022 )
+  {
+    if(abs(Usonic - adjustTarget) > magicLabAdjust){
+      if(Usonic > adjustTarget) { // shall move forward
+        if(UsonicDiff < 75) 
+        { // crawling speed
+          if (adjust_i<1) 
+          { 
+            adjust_i++; cmd_state = 0; 
+          }
+          else 
+          {
+            adjust_i = 0; cmd_state = 1;
+          }
+        } 
+        else 
+        { // low speed
+            cmd_state = 1;
+        }
       }
-    }
-    else if(Usonic < adjustTarget) { // shall move backward
-      if(UsonicDiff < 75) { // crawling speed
-        if (adjust_i<2) { adjust_i++; cmd_state = 0; }
-        else {adjust_i = 0; cmd_state = 2;}
-      } else { // low speed
-        cmd_state = 2;
+      else if(Usonic < adjustTarget) { // shall move backward
+        if(UsonicDiff < 75) 
+        { // crawling speed
+          if (adjust_i<1) 
+          { 
+            adjust_i++; cmd_state = 0; 
+            }
+          else 
+          {
+            adjust_i = 0; cmd_state = 2;
+          }
+        } else 
+        { // low speed
+          cmd_state = 2;
+        }
       }
+    } 
+    else { //should not move
+    //  Serial.println("Adjust done"); // reply back to GUI
+      cmd_state = 0; adjust_flag = false; adjust_speed_i = 0;
+      adjust_lowest = false;
     }
-  } 
-  else { //should not move
+  }
+  else
+  { //should not move
   //  Serial.println("Adjust done"); // reply back to GUI
-    cmd_state = 0; adjust_flag = false; 
+    cmd_state = 0; adjust_flag = false; adjust_speed_i = 0;
+    adjust_lowest = false;
   }
   // Serial.print("L: "); Serial.print(lUsonic); Serial.print('\t'); 
   // Serial.print("R: "); Serial.println(rUsonic); 
@@ -248,7 +322,7 @@ void set_speed(bool speed) {
     else { speed_i = 0; cmd_state = 0; speed_flag = true; }
   }
   else { // to set lowest speed
-    if (speed_i<20) { speed_i++; cmd_state = 5; }
+    if (speed_i<20) { speed_i++; cmd_state = 5;}
     else { speed_i = 0; cmd_state = 0; speed_flag = false; }
   }
 }
@@ -310,5 +384,18 @@ void process_terminal(int incomingByte, int target = 0) { // This function to pr
   }
   else if(incomingByte == 'O' || incomingByte == 'o') { // O or o (print sonic)
     printSONIC_flag = true;
+  }
+}
+
+void speed_to_lowest() {
+  if(adjust_speed_i == 0) {
+    prev_time = millis();
+    adjust_speed_i++;
+  }
+  if(millis() - prev_time < 3000) {
+    cmd_state = 5;
+  }
+  else {
+    adjust_lowest = true;
   }
 }
