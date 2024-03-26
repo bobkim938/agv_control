@@ -126,13 +126,14 @@ void loop() { // put your main code here, to run repeatedly:
     print_state_flag = false; 
   }
 
-  if (Serial.available() <= 0) return;
+  int SerialAvailable = Serial.available();
+  if(SerialAvailable <= 0) return;
   int incomingByte = Serial.read();
   if (incomingByte == 'C' || incomingByte == 'c' || incomingByte == 'N' || incomingByte == 'n') {
-    char buffer[7];
-    Serial.readBytes(buffer, 7);
+    char buffer[SerialAvailable - 1];
+    Serial.readBytes(buffer, SerialAvailable - 1);
     int i = 0;
-    for(i; i < 7; i++) {
+    for(i; i < SerialAvailable - 1; i++) {
       if(buffer[i] == ',') break;
     }
     if(i == 7) {
@@ -144,6 +145,24 @@ void loop() { // put your main code here, to run repeatedly:
     int target = atoi(buffer);
     process_terminal(incomingByte, target);
   }
+  // if (Serial.available() <= 0) return;
+  // int incomingByte = Serial.read();
+  // if (incomingByte == 'C' || incomingByte == 'c' || incomingByte == 'N' || incomingByte == 'n') {
+  //   char buffer[7];
+  //   Serial.readBytes(buffer, 7);
+  //   int i = 0;
+  //   for(i; i < 7; i++) {
+  //     if(buffer[i] == ',') break;
+  //   }
+  //   if(i == 7) {
+  //     delay(100);
+  //     Serial.print(buffer);
+  //     return;
+  //   }
+  //   *(buffer + i) = '\0';
+  //   int target = atoi(buffer);
+  //   process_terminal(incomingByte, target);
+  // }
   else process_terminal(incomingByte);
   delayMicroseconds(50000); // TODO Very important 
 }
