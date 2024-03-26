@@ -22,7 +22,7 @@ void set_speed(bool speed);
 void process_terminal(int incomingByte, int target = 0);
 void speed_to_lowest();
 void estop(); // interrupt for estop pressed, check for debounce
-void unstop(); 
+void unstop(); // interrupt for estop released, check for debounce
 
 const uint8_t sendPin  = 8;
 RS485 rs485(&Serial1, sendPin);  // uses default deviceID
@@ -71,8 +71,9 @@ void unstop() { // interrupt for estop released, check for debounce
 
 void setup() { // put your setup code here, to run once:
   Serial.begin(115200);
+  Serial.setTimeout(50);
   Serial1.begin(9600);
-  while (!Serial); 
+  Serial.setTimeout(50);
   pinMode(interruptPin, INPUT_PULLUP); //Inverts the behavior of the INPUT mode, HIGH means off, LOW means on
   attachInterrupt(digitalPinToInterrupt(interruptPin), estop, LOW);
   Timer1.initialize(50000); // 50 milliseconds
@@ -85,9 +86,9 @@ void setup() { // put your setup code here, to run once:
 
 void loop() { // put your main code here, to run repeatedly:
   read_sensor();
-  if((abs(prev_ltof - lTof) > 200 || lTof < 520) && stride_flag) false_alarm = true;
+  if ((abs(prev_ltof - lTof) > 200 || lTof < 520) && stride_flag) false_alarm = true;
   prev_ltof = lTof;
-  if(estopFlag || false_alarm) {
+  if (estopFlag || false_alarm) {
     cmd_state = 0;
     align_flag = false;
     stride_flag = false;
@@ -95,27 +96,17 @@ void loop() { // put your main code here, to run repeatedly:
     speed_flag = false;
   }
   if (align_flag) align_control(); 
-  // if (align_i<2) { align_i++; cmd_state = 0; }
-  // else { align_i = 0; align_control();
   if (stride_flag) stride_control();
   if (adjust_flag) {
-    if(!adjust_lowest) speed_to_lowest();
+    if (!adjust_lowest) speed_to_lowest();
     else adjust_control();
   }
   if (printTOF_flag) {
-    //Serial.print("L: "); Serial.print(lUsonic); Serial.print('\t'); 
-    //Serial.print("R: "); Serial.print(rUsonic); Serial.print('\t'); 
-    //Serial.print("ToF: "); Serial.println(lTof);
-    Serial.print('p');
-    Serial.print(lTof);
-    Serial.print(',');
+    Serial.print('p'); Serial.print(lTof); Serial.print(',');
     printTOF_flag = false; 
   }
   if (printSONIC_flag) {
-    Serial.print(lUsonic);
-    Serial.print(' ');
-    Serial.print(rUsonic);
-    Serial.print(',');
+    Serial.print(lUsonic); Serial.print(' '); Serial.print(rUsonic); Serial.print(',');
     printSONIC_flag = false;
   }
   if (print_state_flag) {
@@ -126,44 +117,33 @@ void loop() { // put your main code here, to run repeatedly:
     print_state_flag = false; 
   }
 
-  int SerialAvailable = Serial.available();
-  if(SerialAvailable <= 0) return;
+
+  if (Serial.available() <= 0) return;
+
+
   int incomingByte = Serial.read();
   if (incomingByte == 'C' || incomingByte == 'c' || incomingByte == 'N' || incomingByte == 'n') {
-    char buffer[SerialAvailable - 1];
-    Serial.readBytes(buffer, SerialAvailable - 1);
+    char buffer[6];
+    Serial.readBytes(buffer, 6);
     int i = 0;
-    for(i; i < SerialAvailable - 1; i++) {
-      if(buffer[i] == ',') break;
-    }
-    if(i == 7) {
-      delay(100);
-      Serial.print(buffer);
-      return;
-    }
+    for(i; i < 6; i++) if(buffer[i] == ',') break;
+    if(i == 6) return;
     *(buffer + i) = '\0';
     int target = atoi(buffer);
     process_terminal(incomingByte, target);
   }
-  // if (Serial.available() <= 0) return;
-  // int incomingByte = Serial.read();
-  // if (incomingByte == 'C' || incomingByte == 'c' || incomingByte == 'N' || incomingByte == 'n') {
-  //   char buffer[7];
-  //   Serial.readBytes(buffer, 7);
-  //   int i = 0;
-  //   for(i; i < 7; i++) {
-  //     if(buffer[i] == ',') break;
-  //   }
-  //   if(i == 7) {
-  //     delay(100);
-  //     Serial.print(buffer);
-  //     return;
-  //   }
-  //   *(buffer + i) = '\0';
-  //   int target = atoi(buffer);
-  //   process_terminal(incomingByte, target);
-  // }
   else process_terminal(incomingByte);
+  Serial.flush();
+
+  // char buffer[8] = {};
+  // size_t i = Serial.readBytesUntil(',', buffer, 8);
+  // char* ptr = buffer + 1;
+  // *(ptr + i) = '\0';
+  // long target = atoi(ptr);
+  // delayMicroseconds(10);
+  // if (buffer[0] == 'C' || buffer[0] == 'c' || buffer[0] == 'N' || buffer[0] == 'n') process_terminal(buffer[0], target);
+  // else process_terminal(buffer[0]);
+
   delayMicroseconds(50000); // TODO Very important 
 }
 
@@ -229,38 +209,34 @@ void align_control() {
   }
   else { 
     align_i = 0; 
-    if (UsonicDiff > (magicLabAlign*1.0)) { // should rotate cw
-      cmd_state = 4;
-    }
-    else if (UsonicDiff < (magicLabAlign*-1.0)) { // should rotate ccw
-      cmd_state = 3; 
-    }
-    else { // should not move
-    //  Serial.println("Align done"); // reply back to GUI
-      cmd_state = 0; align_flag = false;
-    }
-    // Serial.print("L: "); Serial.print(lUsonic); Serial.print('\t'); 
-    // Serial.print("R: "); Serial.println(rUsonic); 
+    if (UsonicDiff > (magicLabAlign*1.0)) cmd_state = 4; // should rotate cw 
+    else if (UsonicDiff < (magicLabAlign*-1.0)) cmd_state = 3; // should rotate ccw
+    else { cmd_state = 0; align_flag = false; } // should not move
   }
 }
 
 void stride_control() {
   lTofDiff = strideTarget - lTof;
   if (lTofDiff > (magicLabStride*1.0)) { // should move right
-    if (lTofDiff < (magicLabStride*40*1.0)) { //crawling speed
-      if (speed_flag) set_speed(false);
-      else {
-        if (stride_i<1) { stride_i++; cmd_state = 0; }
-        else { stride_i = 0; cmd_state = 8; } 
+    if (rTof > 20) { // check right clearance
+      if (lTofDiff < (magicLabStride*120*1.0)) { //crawling speed
+        if (speed_flag) set_speed(false);
+        else {
+          if (stride_i<1) { stride_i++; cmd_state = 0; }
+          else { stride_i = 0; cmd_state = 8; } 
+        }
+      }
+      else if (lTofDiff < (magicLabStride*400*1.0) && lTofDiff >= (magicLabStride*120*1.0)) { // low speed
+        if (speed_flag) set_speed(false);
+       else cmd_state = 8;       
+      }
+      else { // high speed
+       if (!speed_flag) set_speed(true);
+       else cmd_state = 8; 
       }
     }
-    else if (lTofDiff < (magicLabStride*400*1.0) && lTofDiff >= (magicLabStride*40*1.0)) { // low speed
-      if (speed_flag) set_speed(false);
-      else cmd_state = 8;       
-    }
-    else { // high speed
-      if (!speed_flag) set_speed(true);
-      else cmd_state = 8; 
+    else { // right clearance is not enough. Stop
+      cmd_state = 0; stride_flag = false;
     }
   }
   else if (lTofDiff < (magicLabStride*-1.0)) { // should move left
@@ -268,7 +244,7 @@ void stride_control() {
       if (!speed_flag) set_speed(true);
       else cmd_state = 7; 
     }
-    else if (lTofDiff < (magicLabStride*40*-1.0) && lTofDiff >= (magicLabStride*400*-1.0)) { // low speed
+    else if (lTofDiff < (magicLabStride*120*-1.0) && lTofDiff >= (magicLabStride*400*-1.0)) { // low speed
       if (speed_flag) set_speed(false);
       else cmd_state = 7;       
     }
@@ -281,75 +257,47 @@ void stride_control() {
     }
   }
   else { //should not move
-  //  Serial.println("Stride done"); // reply back to GUI
     cmd_state = 0; stride_flag = false;
   }
-  // Serial.print("ToF: "); Serial.print(lTof); Serial.print('\t'); 
-  // Serial.print("Target: "); Serial.println(strideTarget); 
 }
 
 void adjust_control() {
   int UsonicDiff = abs(adjustTarget - Usonic);
-  if(Usonic > 270 && Usonic < 1022)
-  {
-    if(abs(Usonic - adjustTarget) > magicLabAdjust){
-      if(Usonic > adjustTarget) { // shall move forward
-        if(UsonicDiff < 75) 
-        { // crawling speed
-          if (adjust_i<1) 
-          { 
-            adjust_i++; cmd_state = 0; 
-          }
-          else 
-          {
-            adjust_i = 0; cmd_state = 1;
-          }
+  if (Usonic > 270 && Usonic < 1022) {
+    if (abs(Usonic - adjustTarget) > magicLabAdjust) {
+      if (Usonic > adjustTarget) { // shall move forward
+        if (UsonicDiff < 75) { // crawling speed
+          if (adjust_i<1) { adjust_i++; cmd_state = 0; }
+          else { adjust_i = 0; cmd_state = 1; }
         } 
-        else 
-        { // low speed
-            cmd_state = 1;
-        }
+        else cmd_state = 1; // low speed
       }
-      else if(Usonic < adjustTarget) { // shall move backward
-        if(UsonicDiff < 75) 
-        { // crawling speed
-          if (adjust_i<1) 
-          { 
-            adjust_i++; cmd_state = 0; 
-            }
-          else 
-          {
-            adjust_i = 0; cmd_state = 2;
-          }
-        } else 
-        { // low speed
-          cmd_state = 2;
-        }
+      else if (Usonic < adjustTarget) { // shall move backward
+        if(UsonicDiff < 75) { // crawling speed
+          if (adjust_i<1) { adjust_i++; cmd_state = 0; }
+          else { adjust_i = 0; cmd_state = 2; }
+        } 
+        else cmd_state = 2; // low speed
       }
     } 
     else { //should not move
-    //  Serial.println("Adjust done"); // reply back to GUI
       cmd_state = 0; adjust_flag = false; adjust_speed_i = 0;
       adjust_lowest = false;
     }
   }
-  else
-  { //should not move
-  //  Serial.println("Adjust done"); // reply back to GUI
+  else { //should not move
     cmd_state = 0; adjust_flag = false; adjust_speed_i = 0;
     adjust_lowest = false;
   }
-  // Serial.print("L: "); Serial.print(lUsonic); Serial.print('\t'); 
-  // Serial.print("R: "); Serial.println(rUsonic); 
 }
 
 void set_speed(bool speed) {
   if (speed) { // to set highest speed
-    if (speed_i<20) { speed_i++; cmd_state = 6; }
+    if (speed_i<30) { speed_i++; cmd_state = 6; }
     else { speed_i = 0; cmd_state = 0; speed_flag = true; }
   }
   else { // to set lowest speed
-    if (speed_i<20) { speed_i++; cmd_state = 5;}
+    if (speed_i<30) { speed_i++; cmd_state = 5;}
     else { speed_i = 0; cmd_state = 0; speed_flag = false; }
   }
 }
@@ -378,16 +326,12 @@ void process_terminal(int incomingByte, int target = 0) { // This function to pr
   else if ((incomingByte == 67) || (incomingByte == 99)) { // C or c (stride)
     if(target <= 18655 && target >= 521) { // receiving range of 100 - 3500 mm only
       strideTarget = target;
-      // valid if 15
       stride_flag = true;
       Serial.print('c');
       Serial.print(target);
-      // Serial.print("ToF: "); Serial.print(lTof); Serial.print('\t'); 
-      // Serial.print("Target: "); Serial.println(strideTarget); 
+      Serial.print(',');
     }
-    else {
-      stride_flag = false;
-    }
+    else stride_flag = false;
   }
   else if ((incomingByte == 78) || (incomingByte == 110)) { // N or n (adjust)
     if(target <= 1002 && target >= 179) { // receiving range of 100 - 490 mm only
@@ -395,12 +339,8 @@ void process_terminal(int incomingByte, int target = 0) { // This function to pr
       adjust_flag = true; 
       Serial.print('n');
       Serial.print(target);
-      // Serial.print("Sonic: "); Serial.print(Usonic); Serial.print('\t'); 
-      // Serial.print("Target: "); Serial.println(adjustTarget); 
     }
-    else {
-      adjust_flag = false;
-    }
+    else adjust_flag = false;
   }
   else if ((incomingByte == 80) || (incomingByte == 112)) { // P or p (printTOF)
     printTOF_flag = true; 
