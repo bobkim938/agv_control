@@ -46,7 +46,7 @@ uint8_t align_i, stride_i, adjust_i, speed_i, cmd_state, adjust_speed_i = 0;
 int adjustTarget;
 int lUsonicRead, rUsonicRead, lTofRead, rTofRead;
 int lUsonic, rUsonic, Usonic, UsonicDiff, rTof;
-unsigned long lTof, strideTarget, prev_ltof;
+int lTof, strideTarget, prev_ltof;
 long lTofDiff;
 bool adjust_lowest = false;
 unsigned long prev_time;
@@ -85,16 +85,14 @@ void setup() { // put your setup code here, to run once:
 
 void loop() { // put your main code here, to run repeatedly:
   read_sensor();
-  if(abs(prev_ltof - lTof) > 200) false_alarm = true;
+  if((abs(prev_ltof - lTof) > 200 || lTof < 520) && stride_flag) false_alarm = true;
+  prev_ltof = lTof;
   if(estopFlag || false_alarm) {
     cmd_state = 0;
     align_flag = false;
     stride_flag = false;
     adjust_flag = false;
     speed_flag = false;
-    printTOF_flag = false;
-    print_state_flag = false;
-    Serial.println("Stop");
   }
   if (align_flag) align_control(); 
   // if (align_i<2) { align_i++; cmd_state = 0; }
@@ -121,8 +119,10 @@ void loop() { // put your main code here, to run repeatedly:
     printSONIC_flag = false;
   }
   if (print_state_flag) {
-    if(!align_flag && !stride_flag && !adjust_flag) Serial.print("okla");
-    else if (align_flag || stride_flag || adjust_flag) Serial.print("move");
+    if(estopFlag || false_alarm) Serial.print("s"); // Emergency Stop state
+    else if(!align_flag && !stride_flag && !adjust_flag && !estopFlag && !false_alarm) Serial.print("okla"); // Normal state
+    else if (align_flag || stride_flag || adjust_flag) Serial.print("move"); // Moving state
+    else Serial.print("NO"); // Invalid State
     print_state_flag = false; 
   }
 
@@ -136,6 +136,8 @@ void loop() { // put your main code here, to run repeatedly:
       if(buffer[i] == ',') break;
     }
     if(i == 7) {
+      delay(100);
+      Serial.print(buffer);
       return;
     }
     *(buffer + i) = '\0';
@@ -149,11 +151,10 @@ void loop() { // put your main code here, to run repeatedly:
 
 
 void send_485() { // This function to send out 485 com to the AGV. Don't touch this part!
-  if(!estopFlag) {
+  if(!estopFlag && !false_alarm) {
     switch (cmd_state) {
       case 0: // idle
         for (int i = 0; i < 11; i++) rs485.write(idle[i]);
-        false_alarm = false; // to turn of false_alarm flag
         break;
       case 1: // forward
         for (int j = 0; j < 1; j++) for (int i = 0; i < 11; i++) rs485.write(fwd[i]);
@@ -194,7 +195,6 @@ void send_485() { // This function to send out 485 com to the AGV. Don't touch t
 }
 
 void read_sensor() { // This function to read sensor data and average them
-  prev_ltof = lTof;
   lUsonicRead = lUsonicFilter.add(analogRead(L_usonic)); lUsonic = lUsonicFilter.get();
   rUsonicRead = rUsonicFilter.add(analogRead(R_usonic)); rUsonic = rUsonicFilter.get();
   lTofRead = lTofFilter.add(ADS.readADC(0)); lTof = lTofFilter.get();   
@@ -342,9 +342,8 @@ void process_terminal(int incomingByte, int target = 0) { // This function to pr
     stride_flag = false;
     adjust_flag = false;
     speed_flag = false;
-    printTOF_flag = false;
-    print_state_flag = false;
-    Serial.println("Stop");
+    false_alarm = false;
+    Serial.println("Reset");
   }
   else if ((incomingByte == 87) || (incomingByte == 119)) cmd_state = 1; // W or w (forward)
   else if ((incomingByte == 83) || (incomingByte == 115)) cmd_state = 2; // S or s (backward)
