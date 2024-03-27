@@ -291,14 +291,45 @@ void adjust_control() {
   }
 }
 
+// void set_speed(bool speed) {
+//   if (speed) { // to set highest speed
+//     if (speed_i<30) { speed_i++; cmd_state = 6; }
+//     else { speed_i = 0; cmd_state = 0; speed_flag = true; }
+//   }
+//   else { // to set lowest speed
+//     if (speed_i<30) { speed_i++; cmd_state = 5;}
+//     else { speed_i = 0; cmd_state = 0; speed_flag = false; }
+//   }
+// }
+
 void set_speed(bool speed) {
-  if (speed) { // to set highest speed
-    if (speed_i<30) { speed_i++; cmd_state = 6; }
-    else { speed_i = 0; cmd_state = 0; speed_flag = true; }
+  if(speed) { // to set it to highest speed
+    if(speed_i == 0) {
+      prev_time = millis();
+      speed_i++;
+    }
+    if(prev_time - millis() < 3000) {
+      cmd_state = 6;
+    }
+    else {
+      cmd_state = 0;
+      speed_flag = true;
+      speed_i = 0;
+    }
   }
-  else { // to set lowest speed
-    if (speed_i<30) { speed_i++; cmd_state = 5;}
-    else { speed_i = 0; cmd_state = 0; speed_flag = false; }
+  else { // to set it to lowest speed
+    if(speed_i == 0) {
+      prev_time = millis();
+      speed_i++;
+    }
+    if(prev_time - millis() < 3000) {
+      cmd_state = 5;
+    }
+    else {
+      cmd_state = 0;
+      speed_flag = false;
+      speed_i = 0;
+    }
   }
 }
 
