@@ -86,7 +86,7 @@ void setup() { // put your setup code here, to run once:
 
 void loop() { // put your main code here, to run repeatedly:
   read_sensor();
-  if ((abs(prev_ltof - lTof) > 200 || lTof < 520) && stride_flag) false_alarm = true;
+  if ((abs(prev_ltof - lTof) > 200) && stride_flag) false_alarm = true;
   prev_ltof = lTof;
   if (estopFlag || false_alarm) {
     cmd_state = 0;
@@ -196,7 +196,7 @@ void read_sensor() { // This function to read sensor data and average them
 
 void align_control() {
   UsonicDiff = lUsonic - rUsonic;
-  if (align_i<2) { // only enter the align_control after the count is reached
+  if (align_i<1) { // only enter the align_control after the count is reached
     align_i++; 
     cmd_state = 0; 
   }
@@ -223,7 +223,7 @@ void stride_control() {
         if (speed_flag) set_speed(false);
         else cmd_state = 8;       
       }
-      else { // high speed
+      else if (lTofDiff >= (magicLabStride*400*1.0)) { // high speed
        if (!speed_flag) set_speed(true);
        else cmd_state = 8; 
       }
@@ -233,22 +233,25 @@ void stride_control() {
     }
   }
   else if (lTofDiff < (magicLabStride*-1.0)) { // should move left
-    if (lTof > 20) { // check left clearance
-      if (lTofDiff < (magicLabStride*400*-1.0)|| lTof < 100) { // high speed
-        if (!speed_flag) set_speed(true);
-        else cmd_state = 7; 
-      }
-      else if (lTofDiff < (magicLabStride*120*-1.0) && lTofDiff >= (magicLabStride*400*-1.0)) { // low speed
-        if (speed_flag) set_speed(false);
-        else cmd_state = 7;       
-      }
-      else { //crawling speed
+    if (lTof > 520) { // check left clearance
+      if(lTofDiff > (magicLabStride*120*-1.0) || lTof < 1040) { //crawling speed
         if (speed_flag) set_speed(false);
         else {
           if (stride_i<1) { stride_i++; cmd_state = 0; }
           else { stride_i = 0; cmd_state = 7; } 
         }
       }
+      else if (lTofDiff <= (magicLabStride*120*-1.0) && lTofDiff > (magicLabStride*400*-1.0)) { // low speed
+        if (speed_flag) set_speed(false);
+        else cmd_state = 7;       
+      }
+      else if (lTofDiff <= (magicLabStride*400*-1.0)) { // high speed
+        if (!speed_flag) set_speed(true);
+        else cmd_state = 7; 
+      }
+    }
+    else { // right clearance is not enough. Stop
+      cmd_state = 0; stride_flag = false;
     }
   }
   else { //should not move
