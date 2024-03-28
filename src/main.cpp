@@ -250,7 +250,7 @@ void stride_control() {
         else cmd_state = 7; 
       }
     }
-    else { // right clearance is not enough. Stop
+    else { // left clearance is not enough. Stop
       cmd_state = 0; stride_flag = false;
     }
   }
