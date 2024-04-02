@@ -212,7 +212,7 @@ void stride_control() {
   lTofDiff = strideTarget - lTof;
   if (lTofDiff > (magicLabStride*1.0)) { // should move right
     if (rTof > 20) { // check right clearance (20 ADC value)
-      if (lTofDiff < (magicLabStride*120*1.0) || rTof < 100) { //crawling speed
+      if (lTofDiff < (magicLabStride*120*1.0) || rTof < 80) { //crawling speed
         if (speed_flag) set_speed(false);
         else {
           if (stride_i<1) { stride_i++; cmd_state = 0; }
