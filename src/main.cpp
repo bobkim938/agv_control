@@ -195,15 +195,15 @@ void read_sensor() { // This function to read sensor data and average them
   if(lUsonicRead != 0) {
     lUsonicFilter.add(lUsonicRead); lUsonic = lUsonicFilter.get();
   }
-  if(rUsonicRead) {
+  if(rUsonicRead != 0) {
     rUsonicFilter.add(rUsonicRead); rUsonic = rUsonicFilter.get();
   }
   Usonic = (lUsonic + rUsonic) * 0.5;
 
-  if(lTofRead) {
+  if(lTofRead != 0) {
     lTofFilter.add(lTofRead); lTof = lTofFilter.get();   
   }
-  if(rTofRead) {
+  if(rTofRead != 0) {
     rTofFilter.add(rTofRead); rTof = rTofFilter.get();
   }
 }
