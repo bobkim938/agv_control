@@ -125,10 +125,14 @@ void loop() { // put your main code here, to run repeatedly:
 
   int incomingByte = Serial.read();
   if (incomingByte == 'C' || incomingByte == 'c' || incomingByte == 'N' || incomingByte == 'n') {
-    char buffer[6];
-    Serial.readBytes(buffer, 6);
+    char buffer[7];
+    // Serial.readBytes(buffer, 6);
     int i = 0;
-    for(i; i < 6; i++) if(buffer[i] == ',') break;
+    while(Serial.available() > 0) {
+      buffer[7] = Serial.read();
+      i++;
+    }
+    for(i = 0; i < 6; i++) if(buffer[i] == ',') break;
     if(i == 6) return;
     *(buffer + i) = '\0';
     int target = atoi(buffer);
