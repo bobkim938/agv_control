@@ -126,28 +126,38 @@ void loop() { // put your main code here, to run repeatedly:
 
   int incomingByte = Serial.read();
   if (incomingByte == 'C' || incomingByte == 'c' || incomingByte == 'N' || incomingByte == 'n') {
-    char buffer[15];
+    char buffer[30];
     // Serial.readBytes(buffer, 6);
     int i = 0;
     check_c = true;
-    while(Serial.available() > 0 || check_c) {
-      buffer[i] = Serial.read();
-      i++;
-      if(i > 0) {
-        if(buffer[i-1] == ',') {
-          check_c = false;
+    int Retry = 0;
+    while (Retry<3)
+    {
+      while(Serial.available() > 0) 
+      {
+        buffer[i] = Serial.read();
+        if(buffer[i] == ',')
+        {
+          Retry = 10;
+          break;
+        }
+        i++;
+        if(i == 30) {
+          Retry = 10;
+          break;
         }
       }
-      if(i == 15) break;
+      Retry++;
+      delay(500);
     }
     int j = 0;
-    for(j; j < 15; j++) if(buffer[j] == ',') break;
-    if(j == 15) {
+    for(j; j < 30; j++) if(buffer[j] == ',') break;
+    if(j == 30) {
       Serial.print(buffer);
       Serial.print(',');
       return;
     }
-    *(buffer + i) = '\0';
+    *(buffer + j) = '\0';
     int target = atoi(buffer);
     process_terminal(incomingByte, target);
   }
@@ -243,7 +253,7 @@ void stride_control() {
   lTofDiff = strideTarget - lTof;
   if (lTofDiff > (magicLabStride*1.0)) { // should move right
     if (rTof > 20) { // check right clearance (20 ADC value)
-      if (lTofDiff < (magicLabStride*120*1.0) || rTof < 40) { //crawling speed
+      if (lTofDiff < (magicLabStride*120*1.0) || rTof < 60) { //crawling speed
         if (speed_flag) set_speed(false);
         else {
           if (stride_i<1) { stride_i++; cmd_state = 0; }
@@ -296,14 +306,14 @@ void adjust_control() {
     if (abs(Usonic - adjustTarget) > magicLabAdjust) {
       if (Usonic > adjustTarget) { // shall move forward
         if (UsonicDiff < 75) { // crawling speed
-          if (adjust_i<2) { adjust_i++; cmd_state = 0; }
+          if (adjust_i<1) { adjust_i++; cmd_state = 0; }
           else { adjust_i = 0; cmd_state = 1; }
         } 
         else cmd_state = 1; // low speed
       }
       else if (Usonic < adjustTarget) { // shall move backward
         if(UsonicDiff < 75) { // crawling speed
-          if (adjust_i<2) { adjust_i++; cmd_state = 0; }
+          if (adjust_i<1) { adjust_i++; cmd_state = 0; }
           else { adjust_i = 0; cmd_state = 2; }
         } 
         else cmd_state = 2; // low speed
