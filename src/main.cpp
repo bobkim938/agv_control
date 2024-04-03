@@ -49,6 +49,7 @@ int lUsonic, rUsonic, Usonic, UsonicDiff, rTof;
 int lTof, strideTarget, prev_ltof;
 long lTofDiff;
 bool adjust_lowest = false;
+bool check_c = true;
 unsigned long prev_time, prevT_OnStart;
 MovingAverage <int, 4> lUsonicFilter;
 MovingAverage <int, 4> rUsonicFilter;
@@ -125,15 +126,27 @@ void loop() { // put your main code here, to run repeatedly:
 
   int incomingByte = Serial.read();
   if (incomingByte == 'C' || incomingByte == 'c' || incomingByte == 'N' || incomingByte == 'n') {
-    char buffer[7];
+    char buffer[15];
     // Serial.readBytes(buffer, 6);
     int i = 0;
-    while(Serial.available() > 0) {
-      buffer[7] = Serial.read();
+    check_c = true;
+    while(Serial.available() > 0 || check_c) {
+      buffer[i] = Serial.read();
       i++;
+      if(i > 0) {
+        if(buffer[i-1] == ',') {
+          check_c = false;
+        }
+      }
+      if(i == 15) break;
     }
-    for(i = 0; i < 6; i++) if(buffer[i] == ',') break;
-    if(i == 6) return;
+    int j = 0;
+    for(j; j < 15; j++) if(buffer[j] == ',') break;
+    if(j == 15) {
+      Serial.print(buffer);
+      Serial.print(',');
+      return;
+    }
     *(buffer + i) = '\0';
     int target = atoi(buffer);
     process_terminal(incomingByte, target);
@@ -230,7 +243,7 @@ void stride_control() {
   lTofDiff = strideTarget - lTof;
   if (lTofDiff > (magicLabStride*1.0)) { // should move right
     if (rTof > 20) { // check right clearance (20 ADC value)
-      if (lTofDiff < (magicLabStride*120*1.0) || rTof < 80) { //crawling speed
+      if (lTofDiff < (magicLabStride*120*1.0) || rTof < 40) { //crawling speed
         if (speed_flag) set_speed(false);
         else {
           if (stride_i<1) { stride_i++; cmd_state = 0; }
@@ -376,6 +389,7 @@ void process_terminal(int incomingByte, int target = 0) { // This function to pr
       adjust_flag = true; 
       Serial.print('n');
       Serial.print(target);
+      Serial.print(',');
     }
     else adjust_flag = false;
   }
