@@ -43,11 +43,11 @@ const uint8_t magicLabAdjust = 2;
 
 bool align_flag, stride_flag, adjust_flag, printTOF_flag, printSONIC_flag, speed_flag, print_state_flag, onStart_speed, false_alarm = false;
 uint8_t align_i, stride_i, adjust_i, speed_i, cmd_state, adjust_speed_i = 0;
-int adjustTarget;
-int lUsonicRead, rUsonicRead, lTofRead, rTofRead;
-int lUsonic, rUsonic, Usonic, UsonicDiff, rTof;
-int lTof, strideTarget, prev_ltof;
-long lTofDiff;
+int32_t adjustTarget;
+int32_t lUsonicRead, rUsonicRead, lTofRead, rTofRead;
+int32_t lUsonic, rUsonic, Usonic, UsonicDiff, rTof;
+int32_t lTof, strideTarget, prev_ltof;
+int32_t lTofDiff;
 bool adjust_lowest = false;
 bool check_c = true;
 unsigned long prev_time, prevT_OnStart;
@@ -214,9 +214,9 @@ void send_485() { // This function to send out 485 com to the AGV. Don't touch t
 }
 
 void read_sensor() { // This function to read sensor data and average them
-  lUsonicRead = lUsonicFilter.add((long)analogRead(L_usonic)); lUsonic = (int)lUsonicFilter.get();
-  rUsonicRead = rUsonicFilter.add((long)analogRead(R_usonic)); rUsonic = (int)rUsonicFilter.get();
-  lTofRead = lTofFilter.add((long)ADS.readADC(0)); lTof = (int)lTofFilter.get();   
+  lUsonicRead = lUsonicFilter.add(analogRead(L_usonic)); lUsonic = lUsonicFilter.get();
+  rUsonicRead = rUsonicFilter.add(analogRead(R_usonic)); rUsonic = rUsonicFilter.get();
+  lTofRead = lTofFilter.add(ADS.readADC(0)); lTof = lTofFilter.get();   
   //  Serial.println(ADS.readADC(0));
   // Serial.println(lTofRead);
   // Serial.println(lTof);
