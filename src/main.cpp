@@ -291,32 +291,38 @@ void stride_control() {
 
 void adjust_control() {
   int UsonicDiff = abs(adjustTarget - Usonic);
-  if (Usonic > 270 && Usonic < 1022) {
     if (abs(Usonic - adjustTarget) > magicLabAdjust) {
       if (Usonic > adjustTarget) { // shall move forward
-        if (UsonicDiff < 75) { // crawling speed
-          if (adjust_i<1) { adjust_i++; cmd_state = 0; }
-          else { adjust_i = 0; cmd_state = 1; }
-        } 
-        else cmd_state = 1; // low speed
+        if(Usonic > 270) {
+          if (UsonicDiff < 75) { // crawling speed
+            if (adjust_i<1) { adjust_i++; cmd_state = 0; }
+            else { adjust_i = 0; cmd_state = 1; }
+          } 
+          else cmd_state = 1; // low speed
+        }
+        else { //should not move
+          cmd_state = 0; adjust_flag = false; adjust_speed_i = 0;
+          adjust_lowest = false;
+        }
       }
       else if (Usonic < adjustTarget) { // shall move backward
-        if(UsonicDiff < 75) { // crawling speed
-          if (adjust_i<1) { adjust_i++; cmd_state = 0; }
-          else { adjust_i = 0; cmd_state = 2; }
-        } 
-        else cmd_state = 2; // low speed
+        if(Usonic < 1022) {
+          if(UsonicDiff < 75) { // crawling speed
+            if (adjust_i<1) { adjust_i++; cmd_state = 0; }
+            else { adjust_i = 0; cmd_state = 2; }
+          } 
+          else cmd_state = 2; // low speed
+        }
+        else { //should not move
+          cmd_state = 0; adjust_flag = false; adjust_speed_i = 0;
+          adjust_lowest = false;
+        }
       }
-    } 
+    }
     else { //should not move
       cmd_state = 0; adjust_flag = false; adjust_speed_i = 0;
       adjust_lowest = false;
     }
-  }
-  else { //should not move
-    cmd_state = 0; adjust_flag = false; adjust_speed_i = 0;
-    adjust_lowest = false;
-  }
 }
 
 void set_speed(bool speed) {
