@@ -43,6 +43,7 @@ const uint8_t magicLabAdjust = 2;
 
 bool align_flag, stride_flag, adjust_flag, printTOF_flag, printSONIC_flag, speed_flag, print_state_flag, onStart_speed, false_alarm = false;
 uint8_t align_i, stride_i, adjust_i, speed_i, cmd_state, adjust_speed_i = 0;
+uint8_t adjusting_cnt = 0;
 int32_t adjustTarget;
 int32_t lUsonicRead, rUsonicRead, lTofRead, rTofRead;
 int32_t lUsonic, rUsonic, Usonic, UsonicDiff, rTof;
@@ -126,39 +127,7 @@ void loop() { // put your main code here, to run repeatedly:
 
   int incomingByte = Serial.read();
   if (incomingByte == 'C' || incomingByte == 'c' || incomingByte == 'N' || incomingByte == 'n') {
-    char buffer[30];
-    // Serial.readBytes(buffer, 6);
-    int i = 0;
-    check_c = true;
-    int Retry = 0;
-    while (Retry<3)
-    {
-      while(Serial.available() > 0) 
-      {
-        buffer[i] = Serial.read();
-        if(buffer[i] == ',')
-        {
-          Retry = 10;
-          break;
-        }
-        i++;
-        if(i == 30) {
-          Retry = 10;
-          break;
-        }
-      }
-      Retry++;
-      delay(500);
-    }
-    int j = 0;
-    for(j; j < 30; j++) if(buffer[j] == ',') break;
-    if(j == 30) {
-      Serial.print(buffer);
-      Serial.print(',');
-      return;
-    }
-    *(buffer + j) = '\0';
-    int32_t target = (int32_t)atoi(buffer);
+    int32_t target = Serial.parseInt();
     process_terminal(incomingByte, target);
   }
   else process_terminal(incomingByte);
@@ -294,34 +263,54 @@ void adjust_control() {
     if (abs(Usonic - adjustTarget) > magicLabAdjust) {
       if (Usonic > adjustTarget) { // shall move forward
         if(Usonic > 270) {
-          if (UsonicDiff < 75) { // crawling speed
-            if (adjust_i<1) { adjust_i++; cmd_state = 0; }
-            else { adjust_i = 0; cmd_state = 1; }
+          if (UsonicDiff < 50) { // crawling speed
+            if(adjusting_cnt == 0) {
+              if (adjust_i<1) { adjust_i++; cmd_state = 0;}
+              else { adjust_i = 0; cmd_state = 1; }
+            }
+            else {
+              cmd_state = 0;
+              delay(500);
+              adjusting_cnt = 0;
+            }
           } 
-          else cmd_state = 1; // low speed
+          else {
+            cmd_state = 1; // low speed
+            adjusting_cnt++;
+          }
         }
         else { //should not move
           cmd_state = 0; adjust_flag = false; adjust_speed_i = 0;
-          adjust_lowest = false;
+          adjust_lowest = false;  adjusting_cnt = 0;
         }
       }
       else if (Usonic < adjustTarget) { // shall move backward
         if(Usonic < 1022) {
-          if(UsonicDiff < 75) { // crawling speed
-            if (adjust_i<1) { adjust_i++; cmd_state = 0; }
-            else { adjust_i = 0; cmd_state = 2; }
+          if(UsonicDiff < 50) { // crawling speed
+            if(adjusting_cnt == 0) {
+              if (adjust_i<1) { adjust_i++; cmd_state = 0;}
+              else { adjust_i = 0; cmd_state = 2; }
+            }
+            else {
+              cmd_state = 0;
+              delay(500);
+              adjusting_cnt = 0;
+            }
           } 
-          else cmd_state = 2; // low speed
+          else {
+            cmd_state = 2; // low speed
+            adjusting_cnt++;
+          }
         }
         else { //should not move
           cmd_state = 0; adjust_flag = false; adjust_speed_i = 0;
-          adjust_lowest = false;
+          adjust_lowest = false;  adjusting_cnt = 0;
         }
       }
     }
     else { //should not move
       cmd_state = 0; adjust_flag = false; adjust_speed_i = 0;
-      adjust_lowest = false;
+      adjust_lowest = false; adjusting_cnt = 0;
     }
 }
 
