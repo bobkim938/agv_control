@@ -19,7 +19,7 @@ void align_control();
 void stride_control();
 void adjust_control();
 void set_speed(bool speed);
-void process_terminal(int incomingByte, int target = 0);
+void process_terminal(int incomingByte, int32_t target = 0);
 void speed_to_lowest();
 void estop(); // interrupt for estop pressed, check for debounce
 void unstop(); // interrupt for estop released, check for debounce
@@ -158,7 +158,7 @@ void loop() { // put your main code here, to run repeatedly:
       return;
     }
     *(buffer + j) = '\0';
-    int target = atoi(buffer);
+    int32_t target = (int32_t)atoi(buffer);
     process_terminal(incomingByte, target);
   }
   else process_terminal(incomingByte);
@@ -331,7 +331,7 @@ void set_speed(bool speed) {
 }
 
 
-void process_terminal(int incomingByte, int target = 0) { // This function to process the incoming terminal command
+void process_terminal(int incomingByte, int32_t target = 0) { // This function to process the incoming terminal command
   if (incomingByte == 32) { // space (idle)
     cmd_state = 0; 
     align_flag = false;
