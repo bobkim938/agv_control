@@ -54,7 +54,7 @@ unsigned long prev_time, prevT_OnStart;
 MovingAverage <int, 4> lUsonicFilter;
 MovingAverage <int, 4> rUsonicFilter;
 MovingAverage <int, 4> lTofFilter;
-MovingAverage<int, 4> rTofFilter;
+MovingAverage <int, 4> rTofFilter;
 
 void estop() { // interrupt for estop pressed, check for debounce
   delayMicroseconds(5);
@@ -214,25 +214,14 @@ void send_485() { // This function to send out 485 com to the AGV. Don't touch t
 }
 
 void read_sensor() { // This function to read sensor data and average them
-  int lUsonicRead = analogRead(L_usonic);
-  int rUsonicRead = analogRead(R_usonic);
-  int lTofRead = ADS.readADC(0);
-  int rTofRead = analogRead(R_tof);
-
-  if(lUsonicRead != 0) {
-    lUsonicFilter.add(lUsonicRead); lUsonic = lUsonicFilter.get();
-  }
-  if(rUsonicRead != 0) {
-    rUsonicFilter.add(rUsonicRead); rUsonic = rUsonicFilter.get();
-  }
+  lUsonicRead = lUsonicFilter.add((long)analogRead(L_usonic)); lUsonic = (int)lUsonicFilter.get();
+  rUsonicRead = rUsonicFilter.add((long)analogRead(R_usonic)); rUsonic = (int)rUsonicFilter.get();
+  lTofRead = lTofFilter.add((long)ADS.readADC(0)); lTof = (int)lTofFilter.get();   
+  //  Serial.println(ADS.readADC(0));
+  // Serial.println(lTofRead);
+  // Serial.println(lTof);
   Usonic = (lUsonic + rUsonic) * 0.5;
-
-  if(lTofRead != 0) {
-    lTofFilter.add(lTofRead); lTof = lTofFilter.get();   
-  }
-  if(rTofRead != 0) {
-    rTofFilter.add(rTofRead); rTof = rTofFilter.get();
-  }
+  rTofRead = rTofFilter.add((long)analogRead(R_tof)); rTof = (int)rTofFilter.get();
 }
 
 void align_control() {
@@ -252,8 +241,8 @@ void align_control() {
 void stride_control() {
   lTofDiff = strideTarget - lTof;
   if (lTofDiff > (magicLabStride*1.0)) { // should move right
-    if (rTof > 20) { // check right clearance (20 ADC value)
-      if (lTofDiff < (magicLabStride*120*1.0) || rTof < 60) { //crawling speed
+    if (rTof > 35) { // check right clearance (25 ADC value)
+      if (lTofDiff < (magicLabStride*120*1.0) || rTof < 80) { //crawling speed
         if (speed_flag) set_speed(false);
         else {
           if (stride_i<1) { stride_i++; cmd_state = 0; }
