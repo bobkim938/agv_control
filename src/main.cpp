@@ -210,8 +210,8 @@ void align_control() {
 void stride_control() {
   lTofDiff = strideTarget - lTof;
   if (lTofDiff > (magicLabStride*1.0)) { // should move right
-    if (rTof > 35) { // check right clearance (25 ADC value)
-      if (lTofDiff < (magicLabStride*120*1.0) || rTof < 80) { //crawling speed
+    if (rTof > 20) { // check right clearance (25 ADC value)
+      if (lTofDiff < (magicLabStride*120*1.0) || rTof < 50) { //crawling speed
         if (speed_flag) set_speed(false);
         else {
           if (stride_i<1) { stride_i++; cmd_state = 0; }
@@ -268,7 +268,7 @@ void adjust_control() {
               if (adjust_i<1) { adjust_i++; cmd_state = 0;}
               else { adjust_i = 0; cmd_state = 1; }
             }
-            else {
+            else {                                      
               cmd_state = 0;
               delay(500);
               adjusting_cnt = 0;
@@ -282,7 +282,7 @@ void adjust_control() {
         else { //should not move
           cmd_state = 0; adjust_flag = false; adjust_speed_i = 0;
           adjust_lowest = false;  adjusting_cnt = 0;
-        }
+        }                                                                                           
       }
       else if (Usonic < adjustTarget) { // shall move backward
         if(Usonic < 1022) {
