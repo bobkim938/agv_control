@@ -128,6 +128,9 @@ void loop() { // put your main code here, to run repeatedly:
   int incomingByte = Serial.read();
   if (incomingByte == 'C' || incomingByte == 'c' || incomingByte == 'N' || incomingByte == 'n') {
     int32_t target = Serial.parseInt();
+    if(target - lTof - 670 >= (int32_t)(rTof * 26559.0/1019.0)) { // width of the AGV: 670 mm
+      target = lTof + (int32_t)((rTof - 20) * 26559.0/1019.0);
+    }
     process_terminal(incomingByte, target);
   }
   else process_terminal(incomingByte);
