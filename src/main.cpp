@@ -49,7 +49,8 @@ int32_t lUsonicRead, rUsonicRead, lTofRead, rTofRead;
 int32_t lUsonic, rUsonic, Usonic, UsonicDiff, rTof;
 int32_t lTof, strideTarget, prev_ltof;
 int32_t lTofDiff;
-int32_t ef1; //for false alarm
+int32_t ef[5]; //for false alarm
+int32_t ef_ref = 0;
 bool adjust_lowest = false;
 bool check_c = true;
 unsigned long prev_time, prevT_OnStart;
@@ -92,8 +93,19 @@ void loop() { // put your main code here, to run repeatedly:
   if ((abs(prev_ltof - lTof) > 200) && stride_flag) {
     false_alarm = true;
     // ef1 = prev_ltof;
+    for(int i = 0; i < 4; i++) {
+      if(abs(ef[i] - ef[i + 1]) > 200) {
+        // store bigger value to ef_ref
+        if(ef[i] > ef[i + 1]) ef_ref = ef[i];
+        else ef_ref = ef[i + 1];
+      }
+    }
   }
   prev_ltof = lTof;
+  for(int i = 0; i < 4; i++) {
+    ef[i] = ef[i+1];
+  }
+  ef[4] = lTof;
   if (estopFlag || false_alarm) {
     cmd_state = 0;
     align_flag = false;
