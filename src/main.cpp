@@ -49,8 +49,7 @@ int32_t lUsonicRead, rUsonicRead, lTofRead, rTofRead;
 int32_t lUsonic, rUsonic, Usonic, UsonicDiff, rTof;
 int32_t lTof, strideTarget, prev_ltof;
 int32_t lTofDiff;
-int32_t ef1[5]; //for false alarm
-int32_t ef2 = 0;
+int32_t ef1; //for false alarm
 bool adjust_lowest = false;
 bool check_c = true;
 unsigned long prev_time, prevT_OnStart;
@@ -92,34 +91,19 @@ void loop() { // put your main code here, to run repeatedly:
   read_sensor();
   if ((abs(prev_ltof - lTof) > 200) && stride_flag) {
     false_alarm = true;
-    for(int i = 0; i < 4; i++) {
-      if(abs(ef1[i] - ef1[i+1]) > 200) {
-        // store greater value to ef2
-        if(ef1[i] > ef1[i+1]) {
-          ef2 = ef1[i];
-        }
-        else {
-          ef2 = ef1[i+1];
-        }
-      }
-    }
+    // ef1 = prev_ltof;
   }
   prev_ltof = lTof;
-  for(int i = 0; i < 4; i++) {
-    ef1[i] = ef1[i+1];
-  }
-  ef1[4] = lTof;
-
   if (estopFlag || false_alarm) {
     cmd_state = 0;
     align_flag = false;
     stride_flag = false;
     adjust_flag = false;
     speed_flag = false;
-    if(false_alarm && abs(ef2 - lTof) < 200) {
-      false_alarm = false;
-      stride_flag = true;
-    }
+    // if(false_alarm && abs(lTof - ef1) < 250) {
+    //   false_alarm = false;
+    //   stride_flag = true;
+    // }
   }
   if (align_flag) align_control(); 
   else if (stride_flag) stride_control();
