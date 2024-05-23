@@ -112,10 +112,10 @@ void loop() { // put your main code here, to run repeatedly:
     stride_flag = false;
     adjust_flag = false;
     speed_flag = false;
-    // if(false_alarm && abs(lTof - ef1) < 250) {
-    //   false_alarm = false;
-    //   stride_flag = true;
-    // }
+    if(false_alarm && abs(lTof - ef_ref) < 250) {
+      false_alarm = false;
+      stride_flag = true;
+    }
   }
   if (align_flag) align_control(); 
   else if (stride_flag) stride_control();
