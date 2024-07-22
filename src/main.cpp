@@ -3,14 +3,27 @@
 #include <RS485.h>
 #include <MovingAverage.h>
 #include <ADS1X15.h>
+#include <PS2X_lib.h>  //for v1.6
 
 #define R_usonic A0 // 1st
 #define L_usonic A1 // 2nd
 #define R_tof A3
 
+#define PS2_DAT        13    
+#define PS2_CMD        11
+#define PS2_SEL        10
+#define PS2_CLK        12
+#define pressures   true
+#define rumble      true
+
 // Emergency Stop Interrupt
 const uint8_t interruptPin = 3;
 volatile bool estopFlag;
+
+PS2X ps2x; // create PS2 Controller Class
+int ps2_error = 0;
+byte type = 0;
+byte vibrate = 0;
 
 // function prototypes
 void send_485();
@@ -23,6 +36,10 @@ void process_terminal(int incomingByte, int32_t target = 0);
 void speed_to_lowest();
 void estop(); // interrupt for estop pressed, check for debounce
 void unstop(); // interrupt for estop released, check for debounce
+
+// Reset func 
+void (*resetFunc) (void) = 0;
+void process_controller();
 
 const uint8_t sendPin  = 8;
 RS485 rs485(&Serial1, sendPin);  // uses default deviceID
@@ -42,22 +59,22 @@ const uint8_t magicLabStride = 5; // equivalent to 1 mm
 const uint8_t magicLabAdjust = 2;
 
 bool align_flag, stride_flag, adjust_flag, printTOF_flag, printSONIC_flag, speed_flag, print_state_flag, onStart_speed, false_alarm = false;
+bool ceil_flag = false;
 uint8_t align_i, stride_i, adjust_i, speed_i, cmd_state, adjust_speed_i = 0;
 uint8_t adjusting_cnt = 0;
 int32_t adjustTarget;
-int32_t lUsonicRead, rUsonicRead, lTofRead, rTofRead;
-int32_t lUsonic, rUsonic, Usonic, UsonicDiff, rTof;
+int32_t lUsonicRead, rUsonicRead, lTofRead, rTofRead, CeilTofRead;
+int32_t lUsonic, rUsonic, Usonic, UsonicDiff, rTof, CeilTof;
 int32_t lTof, strideTarget, prev_ltof;
 int32_t lTofDiff;
-int32_t ef[5]; //for false alarm
-int32_t ef_ref = 0;
 bool adjust_lowest = false;
 bool check_c = true;
 unsigned long prev_time, prevT_OnStart;
-MovingAverage <int, 4> lUsonicFilter;
-MovingAverage <int, 4> rUsonicFilter;
+MovingAverage <int, 8> lUsonicFilter;
+MovingAverage <int, 8> rUsonicFilter;
 MovingAverage <int, 4> lTofFilter;
 MovingAverage <int, 4> rTofFilter;
+MovingAverage <int, 4> ceilTofFilter;
 
 void estop() { // interrupt for estop pressed, check for debounce
   delayMicroseconds(5);
@@ -73,6 +90,45 @@ void unstop() { // interrupt for estop released, check for debounce
   attachInterrupt(digitalPinToInterrupt(interruptPin), estop, LOW);
 }
 
+void controller_setup() {
+  delay(500);  //added delay to give wireless ps2 module some time to startup, before configuring it
+     
+  //setup pins and settings: GamePad(clock, command, attention, data, Pressures?, Rumble?) check for error
+  ps2_error = ps2x.config_gamepad(PS2_CLK, PS2_CMD, PS2_SEL, PS2_DAT, pressures, rumble);
+  
+  if(ps2_error == 0){
+    Serial.print("Found Controller, configured successful ");
+    Serial.print("pressures = ");
+	if (pressures)
+	  Serial.println("true ");
+	else
+	  Serial.println("false");
+	  Serial.print("rumble = ");
+	if (rumble)
+	  Serial.println("true)");
+	else
+	  Serial.println("false");
+  }  
+  else if(ps2_error == 1)
+    Serial.println("No controller found, check wiring, see readme.txt to enable debug. visit www.billporter.info for troubleshooting tips");
+   
+  else if(ps2_error == 2)
+    Serial.println("Controller found but not accepting commands. see readme.txt to enable debug. Visit www.billporter.info for troubleshooting tips");
+
+  else if(ps2_error == 3)
+    Serial.println("Controller refusing to enter Pressures mode, may not support it. ");
+  
+  type = ps2x.readType(); 
+  switch(type) {
+    case 0:
+      Serial.println("Unknown Controller type found ");
+      break;
+    case 1:
+      Serial.println("DualShock Controller found ");
+      break;
+   }
+}
+
 void setup() { // put your setup code here, to run once:
   Serial.begin(115200);
   Serial.setTimeout(50);
@@ -85,6 +141,8 @@ void setup() { // put your setup code here, to run once:
   Wire.begin();
   if (!ADS.begin()) Serial.println("Invalid I2C address");
   if (!ADS.isConnected()) Serial.println("ADS1115 is not connected");
+
+  controller_setup();
 }
 
 
@@ -92,30 +150,14 @@ void loop() { // put your main code here, to run repeatedly:
   read_sensor();
   if ((abs(prev_ltof - lTof) > 200) && stride_flag) {
     false_alarm = true;
-    // ef1 = prev_ltof;
-    for(int i = 0; i < 4; i++) {
-      if(abs(ef[i] - ef[i + 1]) > 200) {
-        // store bigger value to ef_ref
-        if(ef[i] > ef[i + 1]) ef_ref = ef[i];
-        else ef_ref = ef[i + 1];
-      }
-    }
   }
   prev_ltof = lTof;
-  for(int i = 0; i < 4; i++) {
-    ef[i] = ef[i+1];
-  }
-  ef[4] = lTof;
   if (estopFlag || false_alarm) {
     cmd_state = 0;
     align_flag = false;
     stride_flag = false;
     adjust_flag = false;
     speed_flag = false;
-    if(false_alarm && abs(lTof - ef_ref) < 250) {
-      false_alarm = false;
-      stride_flag = true;
-    }
   }
   if (align_flag) align_control(); 
   else if (stride_flag) stride_control();
@@ -132,6 +174,12 @@ void loop() { // put your main code here, to run repeatedly:
   if (printSONIC_flag) {
     Serial.print(lUsonic); Serial.print(' '); Serial.print(rUsonic); Serial.print(',');
     printSONIC_flag = false;
+  }
+  if (ceil_flag) {
+    Serial.print('u');
+    Serial.print(CeilTof);
+    Serial.print(',');
+    ceil_flag = false;
   }
   if (print_state_flag) {
     if(estopFlag || false_alarm) Serial.print("s"); // Emergency Stop state
@@ -154,6 +202,14 @@ void loop() { // put your main code here, to run repeatedly:
     else process_terminal(incomingByte);
     Serial.flush();
   }
+  
+  //dualshock controller
+  if(ps2_error == 1){ // reset board
+    resetFunc();
+  }
+  ps2x.read_gamepad(false, vibrate); //read controller and set large motor to spin at 'vibrate' speed
+  process_controller();
+
   delayMicroseconds(50000); // TODO Very important 
 }
 
@@ -207,6 +263,7 @@ void read_sensor() { // This function to read sensor data and average them
   lUsonicRead = lUsonicFilter.add(analogRead(L_usonic)); lUsonic = lUsonicFilter.get();
   rUsonicRead = rUsonicFilter.add(analogRead(R_usonic)); rUsonic = rUsonicFilter.get();
   lTofRead = lTofFilter.add(ADS.readADC(0)); lTof = lTofFilter.get();   
+  CeilTofRead = ceilTofFilter.add(ADS.readADC(2)); CeilTof = ceilTofFilter.get();
   // Serial.println(ADS.readADC(0));
   // Serial.println(lTofRead);
   // Serial.println(lTof);
@@ -216,7 +273,7 @@ void read_sensor() { // This function to read sensor data and average them
 
 void align_control() {
   UsonicDiff = lUsonic - rUsonic;
-  if (align_i<1) { // only enter the align_control after the count is reached
+  if (align_i<2) { // only enter the align_control after the count is reached
     align_i++; 
     cmd_state = 0; 
   }
@@ -364,32 +421,32 @@ void process_terminal(int incomingByte, int32_t target = 0) { // This function t
     Serial.println("Reset");
   }
   else if ((incomingByte == 87) || (incomingByte == 119)) { // W or w (forward)
-    if(lUsonic > 180 && rUsonic > 180)  // if both sensors are not blocked (100 mm == 180 ADC)
+    // if(lUsonic > 180 && rUsonic > 180)  // if both sensors are not blocked (100 mm == 180 ADC)
       cmd_state = 1;
-    else cmd_state = 0;
+    // else cmd_state = 0;
     } 
   else if ((incomingByte == 83) || (incomingByte == 115)) cmd_state = 2; // S or s (backward)
   else if ((incomingByte == 81) || (incomingByte == 113)) { // Q or q (ccw)
-    if(lTof > 3448 && rTof > 20 && lUsonic > 390 && rUsonic > 390) // L, RTOF > 650 mm , L, RUSONIC > 200 mm
-      cmd_state = 3; 
-    else cmd_state = 0;
+    // if(lTof > 3448 && rTof > 20 && lUsonic > 390 && rUsonic > 390) // L, RTOF > 650 mm , L, RUSONIC > 200 mm
+      cmd_state = 3;
+    // else cmd_state = 0;
   } 
   else if ((incomingByte == 69) || (incomingByte == 101)) { // E or e (cw)
-    if(lTof > 3448 && rTof > 20 && lUsonic > 390 && rUsonic > 390) // L, RTOF > 650 mm , L, RUSONIC > 200 mm
+    // if(lTof > 3448 && rTof > 20 && lUsonic > 390 && rUsonic > 390) // L, RTOF > 650 mm , L, RUSONIC > 200 mm
       cmd_state = 4; 
-    else cmd_state = 0;
+    // else cmd_state = 0;
   } 
   else if (incomingByte == 45) cmd_state = 5; // - (slower)
   else if (incomingByte == 61) cmd_state = 6; // = (faster)
   else if ((incomingByte == 65) || (incomingByte == 97)) { // A or a (left)
-    if(lTof > 521) // if left sensor is not blocked (100 mm == 521 ADC)
+    // if(lTof > 521) // if left sensor is not blocked (100 mm == 521 ADC)
       cmd_state = 7; // A or a (left)
-    else cmd_state = 0;
+    // else cmd_state = 0;
   }
   else if ((incomingByte == 68) || (incomingByte == 100)) { // D or d (right)
-    if(rTof > 20) // if right sensor is not blocked (100 mm == 20 ADC)
+    // if(rTof > 20) // if right sensor is not blocked (100 mm == 20 ADC)
       cmd_state = 8;
-    else cmd_state = 0;
+    // else cmd_state = 0;
   }
   else if ((incomingByte == 77) || (incomingByte == 109)) { // M or m (align)
     align_flag = true; 
@@ -423,9 +480,58 @@ void process_terminal(int incomingByte, int32_t target = 0) { // This function t
   else if(incomingByte == 'O' || incomingByte == 'o') { // O or o (print sonic)
     printSONIC_flag = true;
   }
+  else if(incomingByte == 'U' || incomingByte == 'u') { // U or u (print ceiling Tof)
+    ceil_flag = true;
+  }
   else if(incomingByte == 'I' || incomingByte == 'i') {
     prevT_OnStart = millis();
     onStart_speed = true;
+  }
+}
+
+void process_controller() {     // Function to receive PS2 input
+  if(ps2x.Button(PSB_START)) {         // start (idle)
+    cmd_state = 0; 
+    align_flag = false;
+    stride_flag = false;
+    adjust_flag = false;
+    speed_flag = false;
+    false_alarm = false;
+    Serial.println("Reset");
+  }
+  else if(ps2x.Button(PSB_PAD_UP) && ps2x.Button(PSB_R1)) { // Up pad (forward)
+    // if(lUsonic > 180 && rUsonic > 180)  // if both sensors are not blocked (100 mm == 180 ADC)
+      cmd_state = 1;
+    // else cmd_state = 0;
+    }
+  else if (ps2x.Button(PSB_PAD_DOWN) && ps2x.Button(PSB_R1)) cmd_state = 2; // Down pad (backward)
+  else if (ps2x.Button(PSB_SQUARE)) { // L1 (ccw)
+    // if(lTof > 3448 && rTof > 20 && lUsonic > 390 && rUsonic > 390) // L, RTOF > 650 mm , L, RUSONIC > 200 mm
+      cmd_state = 3;
+    // else cmd_state = 0;
+  } 
+  else if (ps2x.Button(PSB_CIRCLE) && ps2x.Button(PSB_R1)) { // R1 (cw)
+    // if(lTof > 3448 && rTof > 20 && lUsonic > 390 && rUsonic > 390) // L, RTOF > 650 mm , L, RUSONIC > 200 mm
+      cmd_state = 4; 
+    // else cmd_state = 0;
+  } 
+  else if (ps2x.Button(PSB_CROSS) && ps2x.Button(PSB_R1)) {
+    unsigned long first_trigger = millis();
+    while (millis() - first_trigger < 1000) cmd_state = 5;    // - (slower)
+  }
+  else if (ps2x.Button(PSB_TRIANGLE) && ps2x.Button(PSB_R1)) {
+    unsigned long first_trigger = millis();
+    while (millis() - first_trigger < 1000) cmd_state = 6; // = (faster)
+  }
+  else if (ps2x.Button(PSB_PAD_LEFT) && ps2x.Button(PSB_R1)) { // Left pad (left)
+    // if(lTof > 521) // if left sensor is not blocked (100 mm == 521 ADC)
+      cmd_state = 7; // A or a (left)
+    // else cmd_state = 0;
+  }
+  else if (ps2x.Button(PSB_PAD_RIGHT) && ps2x.Button(PSB_R1)) { // Right pad (right)
+    // if(rTof > 20) // if right sensor is not blocked (100 mm == 20 ADC)
+      cmd_state = 8;
+    // else cmd_state = 0;
   }
 }
 
