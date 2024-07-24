@@ -437,7 +437,12 @@ void process_terminal(int incomingByte, int32_t target = 0) { // This function t
     }
     else cmd_state = 0;
     } 
-  else if ((incomingByte == 83) || (incomingByte == 115)) cmd_state = 2; // S or s (backward)
+  else if ((incomingByte == 83) || (incomingByte == 115)) { // S or s (backward)
+    if(digitalRead(BLidarZone1) < 1) {  // if front sensor is not blocked
+      cmd_state = 2;
+    }
+    else cmd_state = 0;
+  } 
   else if ((incomingByte == 81) || (incomingByte == 113)) { // Q or q (ccw)
     // if(lTof > 3448 && rTof > 20 && lUsonic > 390 && rUsonic > 390) // L, RTOF > 650 mm , L, RUSONIC > 200 mm
     if(digitalRead(FLidarZone1) < 1 && digitalRead(FLidarZone2) < 1 && digitalRead(BLidarZone1) < 1 && digitalRead(BLidarZone2) < 1) { 
@@ -525,7 +530,12 @@ void process_controller() {     // Function to receive PS2 input
     }
     else cmd_state = 0;
     }
-  else if (ps2x.Button(PSB_PAD_DOWN) && ps2x.Button(PSB_R1)) cmd_state = 2; // Down pad (backward)
+  else if (ps2x.Button(PSB_PAD_DOWN) && ps2x.Button(PSB_R1)) {// Down pad (backward)
+    if(digitalRead(BLidarZone1) < 1) {  // if back sensor is not blocked
+      cmd_state = 2;
+    }
+    else cmd_state = 0;
+  }
   else if (ps2x.Button(PSB_SQUARE)) { // L1 (ccw)
     // if(lTof > 3448 && rTof > 20 && lUsonic > 390 && rUsonic > 390) // L, RTOF > 650 mm , L, RUSONIC > 200 mm
     if(digitalRead(FLidarZone1) < 1 && digitalRead(FLidarZone2) < 1 && digitalRead(BLidarZone1) < 1 && digitalRead(BLidarZone2) < 1) { 
