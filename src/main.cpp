@@ -180,11 +180,11 @@ void loop() { // put your main code here, to run repeatedly:
     Serial.flush();
   }
   
-  //dualshock controller
+  // dualshock controller
   if(ps2_error == 1){ // reset board
     resetFunc();
   }
-  ps2x.read_gamepad(false, vibrate); //read controller and set large motor to spin at 'vibrate' speed
+  ps2x.read_gamepad(false, vibrate); // read controller and set large motor to spin at 'vibrate' speed
   process_controller();
 
   delayMicroseconds(50000); // TODO Very important 
@@ -420,7 +420,7 @@ void set_speed(bool speed) {
 }
 
 
-void process_terminal(int incomingByte, int32_t target = 0) { // This function to process the incoming terminal command
+void process_terminal(int incomingByte, int32_t target) { // This function to process the incoming terminal command
   if (incomingByte == 32) { // space (idle)
     cmd_state = 0; 
     align_flag = false;
