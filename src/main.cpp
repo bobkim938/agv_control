@@ -13,8 +13,6 @@
 #define PS2_CMD        11
 #define PS2_SEL        10
 #define PS2_CLK        12
-#define pressures   true
-#define rumble      true
 
 #define FLidarZone1 22 // front zone
 #define FLidarZone2 26 // right zone
@@ -23,14 +21,14 @@
 #define BLidarZone2 38 // left zone
 #define BLidarZone3 42
 
+enum Speed { SLOW, FAST };
+
 // Emergency Stop Interrupt
 const uint8_t interruptPin = 3;
 volatile bool estopFlag;
 
 PS2X ps2x; // create PS2 Controller Class
 int ps2_error = 0;
-byte type = 0;
-byte vibrate = 0;
 
 // function prototypes
 void send_485();
@@ -40,14 +38,13 @@ void stride_control();
 void adjust_control();
 void set_speed(bool speed);
 void process_terminal(int incomingByte, int32_t target = 0);
-void speed_to_lowest();
+void process_controller();
 void estop(); // interrupt for estop pressed, check for debounce
 void unstop(); // interrupt for estop released, check for debounce
 void controller_setup(); // PS2 controller setup
 
 // Reset func 
 void (*resetFunc) (void) = 0;
-void process_controller();
 
 const uint8_t sendPin  = 8;
 RS485 rs485(&Serial1, sendPin);  // uses default deviceID
@@ -66,9 +63,10 @@ const uint8_t magicLabAlign = 1;
 const uint8_t magicLabStride = 5; // equivalent to 1 mm
 const uint8_t magicLabAdjust = 2;
 
-bool align_flag, stride_flag, adjust_flag, printTOF_flag, printSONIC_flag, speed_flag, print_state_flag, onStart_speed, false_alarm = false;
+Speed speed_level;
+bool align_flag, stride_flag, adjust_flag, printTOF_flag, printSONIC_flag, print_state_flag, onStart_speed, false_alarm = false;
 bool ceil_flag = false;
-uint8_t align_i, stride_i, adjust_i, speed_i, cmd_state, adjust_speed_i = 0;
+uint8_t align_i, adjust_i, cmd_state, adjust_speed_i = 0;
 uint8_t adjusting_cnt = 0;
 int32_t adjustTarget;
 int32_t lUsonicRead, rUsonicRead, lTofRead, rTofRead, CeilTofRead;
@@ -98,6 +96,34 @@ void unstop() { // interrupt for estop released, check for debounce
   attachInterrupt(digitalPinToInterrupt(interruptPin), estop, LOW);
 }
 
+void controller_setup() {
+  delay(500);  //added delay to give wireless ps2 module some time to startup, before configuring it
+     
+  //setup pins and settings: GamePad(clock, command, attention, data, Pressures?, Rumble?) check for error
+  ps2_error = ps2x.config_gamepad(PS2_CLK, PS2_CMD, PS2_SEL, PS2_DAT, true, true);
+  
+  if(ps2_error == 0){
+    Serial.print("Found Controller, configured successful ");
+  }  
+  else if(ps2_error == 1)
+    Serial.println("No controller found, check wiring, see readme.txt to enable debug. visit www.billporter.info for troubleshooting tips");
+   
+  else if(ps2_error == 2)
+    Serial.println("Controller found but not accepting commands. see readme.txt to enable debug. Visit www.billporter.info for troubleshooting tips");
+
+  else if(ps2_error == 3)
+    Serial.println("Controller refusing to enter Pressures mode, may not support it. ");
+   
+  switch(ps2x.readType()) {
+    case 0:
+      Serial.println("Unknown Controller type found ");
+      break;
+    case 1:
+      Serial.println("DualShock Controller found ");
+      break;
+   }
+}
+
 void setup() { // put your setup code here, to run once:
   Serial.begin(115200);
   Serial.setTimeout(50);
@@ -125,24 +151,25 @@ void setup() { // put your setup code here, to run once:
 
 void loop() { // put your main code here, to run repeatedly:
   read_sensor();
-  if ((abs(prev_ltof - lTof) > 200) && stride_flag) {
-    false_alarm = true;
-  }
+  if ((abs(prev_ltof - lTof) > 200) && stride_flag) false_alarm = true;
   prev_ltof = lTof;
   if (estopFlag || false_alarm) {
     cmd_state = 0;
     align_flag = false;
     stride_flag = false;
     adjust_flag = false;
-    speed_flag = false;
+    speed_level = false;
   }
   if (align_flag) align_control(); 
   else if (stride_flag) stride_control();
   else if (adjust_flag) {
-    if (!adjust_lowest) speed_to_lowest();
-    else adjust_control();
+    set_speed(SLOW);
+    adjust_control();
   }
-  else if(onStart_speed) speed_to_lowest();
+  else if(onStart_speed) {
+    speed_to_lowest();
+    onStart_speed = false;
+  }
 
   if (printTOF_flag) {
     Serial.print('p'); Serial.print(lTof); Serial.print(' '); Serial.print(rTof); Serial.print(',');
@@ -166,25 +193,22 @@ void loop() { // put your main code here, to run repeatedly:
     print_state_flag = false; 
   }
 
-
   if (Serial.available() > 0) {
     int incomingByte = Serial.read();
+    int32_t target = 0;
     if (incomingByte == 'C' || incomingByte == 'c' || incomingByte == 'N' || incomingByte == 'n') {
-      int32_t target = Serial.parseInt();
+      target = Serial.parseInt();
       if(target - lTof - 129 >= (int32_t)(rTof * 26559.0/1019.0)) { // width of the AGV: 670 mm
         target = lTof + (int32_t)((rTof - 18) * 26559.0/1019.0);
       }
-      process_terminal(incomingByte, target);
     }
-    else process_terminal(incomingByte);
+    process_terminal(incomingByte, target);
     Serial.flush();
   }
   
-  // dualshock controller
-  if(ps2_error == 1){ // reset board
-    resetFunc();
-  }
-  ps2x.read_gamepad(false, vibrate); // read controller and set large motor to spin at 'vibrate' speed
+  //dualshock controller
+  if(ps2_error == 1) resetFunc();
+  ps2x.read_gamepad(false, 0); //read controller
   process_controller();
 
   delayMicroseconds(50000); // TODO Very important 
@@ -199,40 +223,33 @@ void send_485() { // This function to send out 485 com to the AGV. Don't touch t
         for (int i = 0; i < 11; i++) rs485.write(idle[i]);
         break;
       case 1: // forward
-        for (int j = 0; j < 1; j++) for (int i = 0; i < 11; i++) rs485.write(fwd[i]);
-        cmd_state = 0;
+        for (int i = 0; i < 11; i++) rs485.write(fwd[i]);
         break;
       case 2: // backward
-        for (int j = 0; j < 1; j++) for (int i = 0; i < 11; i++) rs485.write(bkwd[i]);
-        cmd_state = 0;
+        for (int i = 0; i < 11; i++) rs485.write(bkwd[i]);
         break;
       case 3: // ccw
-        for (int j = 0; j < 1; j++) for (int i = 0; i < 11; i++) rs485.write(ccw[i]);
-        cmd_state = 0;
+        for (int i = 0; i < 11; i++) rs485.write(ccw[i]);
         break;
       case 4: // cw
-        for (int j = 0; j < 1; j++) for (int i = 0; i < 11; i++) rs485.write(cw[i]);
-        cmd_state = 0;
+        for (int i = 0; i < 11; i++) rs485.write(cw[i]);
         break;
       case 5: // slower
-        for (int j = 0; j < 1; j++) for (int i = 0; i < 11; i++) rs485.write(slow[i]);
-        cmd_state = 0;
+        for (int i = 0; i < 11; i++) rs485.write(slow[i]);
         break;
       case 6: // faster
-        for (int j = 0; j < 1; j++) for (int i = 0; i < 11; i++) rs485.write(fast[i]);
-        cmd_state = 0;
+        for (int i = 0; i < 11; i++) rs485.write(fast[i]);
         break;
       case 7: // left
-        for (int j = 0; j < 1; j++) for (int i = 0; i < 11; i++) rs485.write(left[i]);
-        cmd_state = 0;
+        for (int i = 0; i < 11; i++) rs485.write(left[i]);
         break;
       case 8: // right
-        for (int j = 0; j < 1; j++) for (int i = 0; i < 11; i++) rs485.write(right[i]);
-        cmd_state = 0;
+        for (int i = 0; i < 11; i++) rs485.write(right[i]);
         break;  
       default:
         break;
     }
+    cmd_state = 0;
   }
 }
 
@@ -241,242 +258,184 @@ void read_sensor() { // This function to read sensor data and average them
   rUsonicRead = rUsonicFilter.add(analogRead(R_usonic)); rUsonic = rUsonicFilter.get();
   lTofRead = lTofFilter.add(ADS.readADC(0)); lTof = lTofFilter.get();   
   CeilTofRead = ceilTofFilter.add(ADS.readADC(2)); CeilTof = ceilTofFilter.get();
-  // Serial.println(ADS.readADC(0));
-  // Serial.println(lTofRead);
-  // Serial.println(lTof);
   Usonic = (lUsonic + rUsonic) * 0.5;
   rTofRead = rTofFilter.add(analogRead(R_tof)); rTof = rTofFilter.get();
 }
 
 void align_control() {
   UsonicDiff = lUsonic - rUsonic;
-  if(UsonicDiff <= 32) {
-    if (align_i<2) { // only enter the align_control after the count is reached
-      align_i++; 
-      cmd_state = 0; 
-    }
-    else { 
-      if(digitalRead(FLidarZone1) < 1 && digitalRead(BLidarZone1) < 1 && digitalRead(FLidarZone2) < 1 && digitalRead(BLidarZone2) < 1) {
-        align_i = 0; 
-        if (UsonicDiff > (magicLabAlign*1.0)) {
-          cmd_state = 4; // should rotate cw
-          // Serial.println("CW");
-        } 
-        else if (UsonicDiff < (magicLabAlign*-1.0)) {
-          cmd_state = 3; // should rotate ccw
-          // Serial.println("CCW");
-        }
-        else { cmd_state = 0; align_flag = false; } // should not move
-      }
-      else {
-        cmd_state = 0;
-      }
-    }
-  }
-  else {
-    cmd_state = 0;
+  cmd_state = 0;
+  if(UsonicDiff > 32) {
     align_flag = false;
+    return;
+  }
+
+  // only enter the align_control after the count is reached
+  if(align_i == 2 && digitalRead(FLidarZone1) < 1 && digitalRead(BLidarZone1) < 1 && digitalRead(FLidarZone2) < 1 && digitalRead(BLidarZone2) < 1) {
+    align_i = 0; 
+    if (UsonicDiff > (magicLabAlign*1.0)) {
+      cmd_state = 4; // should rotate cw
+    } else if (UsonicDiff < (magicLabAlign*-1.0)) {
+      cmd_state = 3; // should rotate ccw
+    } else {
+      align_flag = false; 
+    } // should not move
+  } else if (align_i < 2) {
+    align_i++;
   }
 }
 
 void stride_control() {
   lTofDiff = strideTarget - lTof;
+  cmd_state = 0;
   if (lTofDiff > (magicLabStride*1.0)) { // should move right
-    if(digitalRead(FLidarZone2) < 1) {
-      if (rTof > 18) { // check right clearance (25 ADC value)
-        if (lTofDiff < (magicLabStride*120*1.0) || rTof < 50) { //crawling speed
-          if (speed_flag) set_speed(false);
-          else {
-            if (stride_i<1) { stride_i++; cmd_state = 0; }
-            else { stride_i = 0; cmd_state = 8; } 
-          }
-        }
-        else if (lTofDiff < (magicLabStride*400*1.0) && lTofDiff >= (magicLabStride*120*1.0)) { // low speed
-          if (speed_flag) set_speed(false);
-          else cmd_state = 8;       
-        }
-        else if (lTofDiff >= (magicLabStride*400*1.0)) { // high speed
-        if (!speed_flag) set_speed(true);
-        else cmd_state = 8; 
-        }
+    if(digitalRead(FLidarZone2) >= 1) break;
+
+    if (rTof <= 18) { // right clearance is not enough. Stop
+      stride_flag = false; break;
+    }
+    if (lTofDiff < (magicLabStride*120*1.0) || rTof < 50 || 
+      lTofDiff < (magicLabStride*400*1.0) && lTofDiff >= (magicLabStride*120*1.0)) { //crawling speed, low speed
+      if (speed_level == FAST) {
+        set_speed(SLOW);
+      } else {
+        cmd_state = 8;
       }
-      else { // right clearance is not enough. Stop
-        cmd_state = 0; stride_flag = false;
+    } else if (lTofDiff >= (magicLabStride*400*1.0)) { // high speed
+      if (speed_level == SLOW) {
+        set_speed(FAST);
+      } else {
+        cmd_state = 8; 
       }
     }
-    else { // something on the right side of the AGV
-      cmd_state = 0;
-    }
+    // something on the right side of the AGV
   }
-  else if (lTofDiff < (magicLabStride*-1.0)) { // should move left
-    if(digitalRead(BLidarZone2) < 1) {
-      if (lTof > 520) { // check left clearance
-        if(lTofDiff > (magicLabStride*120*-1.0) || lTof < 1040) { //crawling speed
-          if (speed_flag) set_speed(false);
-          else {
-            if (stride_i<1) { stride_i++; cmd_state = 0; }
-            else { stride_i = 0; cmd_state = 7; } 
-          }
-        }
-        else if (lTofDiff <= (magicLabStride*120*-1.0) && lTofDiff > (magicLabStride*400*-1.0)) { // low speed
-          if (speed_flag) set_speed(false);
-          else cmd_state = 7;       
-        }
-        else if (lTofDiff <= (magicLabStride*400*-1.0)) { // high speed
-          if (!speed_flag) set_speed(true);
-          else cmd_state = 7; 
-        }
-      }
-      else { // left clearance is not enough. Stop
-        cmd_state = 0; stride_flag = false;
-      }
+
+  if (lTofDiff < (magicLabStride*-1.0)) { // should move left
+    if (digitalRead(BLidarZone2) >= 1) {
+      // should not move
+      stride_flag = false;
+      break;
     }
-    else { // something on the left side of the AGV
-      cmd_state = 0;
+
+    // left clearance is not enough. Stop
+    if (lTof <= 520) stride_flag = false; break;
+
+    if(lTofDiff > (magicLabStride*120*-1.0) || lTof < 1040 || 
+      lTofDiff <= (magicLabStride*120*-1.0) && lTofDiff > (magicLabStride*400*-1.0)) { //crawling speed, low speed
+      if (speed_level = FAST) {
+        set_speed(SLOW);
+      } else {
+        cmd_state = 7;
+      }
+    } else if (lTofDiff <= (magicLabStride*400*-1.0)) { // high speed
+      if (speed_level == SLOW) {
+        set_speed(FAST);
+      } else cmd_state = 7; 
     }
-  }
-  else { //should not move
-    cmd_state = 0; stride_flag = false;
+    // something on the left side of the AGV
   }
 }
 
 void adjust_control() {
   int UsonicDiff = abs(adjustTarget - Usonic);
-    if (abs(Usonic - adjustTarget) > magicLabAdjust) {
-      if (Usonic > adjustTarget) { // shall move forward
-        if(digitalRead(FLidarZone1) < 1) {
-          if(Usonic > 270) {
-            if (UsonicDiff < 50) { // crawling speed
-              if(adjusting_cnt == 0) {
-                if (adjust_i<1) { adjust_i++; cmd_state = 0;}
-                else { adjust_i = 0; cmd_state = 1; }
-              }
-              else {                                      
-                cmd_state = 0;
-                delay(500);
-                adjusting_cnt = 0;
-              }
-            } 
-            else {
-              cmd_state = 1; // low speed
-              adjusting_cnt++;
-            }
-          }
-          else { //should not move
-            cmd_state = 0; adjust_flag = false; adjust_speed_i = 0;
-            adjust_lowest = false;  adjusting_cnt = 0;
-          } 
-        }
-        else { // something on the front side of the AGV
-          cmd_state = 0;
-        }                                                                                          
-      }
-      
-      else if (Usonic < adjustTarget) { // shall move backward
-        if(digitalRead(BLidarZone1) < 1) {
-          if(Usonic < 1022) {
-            if(UsonicDiff < 50) { // crawling speed
-              if(adjusting_cnt == 0) {
-                if (adjust_i<1) { adjust_i++; cmd_state = 0;}
-                else { adjust_i = 0; cmd_state = 2; }
-              }
-              else {
-                cmd_state = 0;
-                delay(500);
-                adjusting_cnt = 0;
-              }
-            } 
-            else {
-              cmd_state = 2; // low speed
-              adjusting_cnt++;
-            }
-          }
-          else { //should not move
-            cmd_state = 0; adjust_flag = false; adjust_speed_i = 0;
-            adjust_lowest = false;  adjusting_cnt = 0;
-          }
-        }
-        else { // something on the back side of the AGV
-          cmd_state = 0;
-        }
-      }
+  cmd_state = 0;
 
-    }
-    else { //should not move
-      cmd_state = 0; adjust_flag = false; adjust_speed_i = 0;
-      adjust_lowest = false; adjusting_cnt = 0;
-    }
-}
-
-void set_speed(bool speed) {
-  if (speed) { // to set highest speed
-    if (speed_i<30) { speed_i++; cmd_state = 6; }
-    else { speed_i = 0; cmd_state = 0; speed_flag = true; }
+  if (abs(Usonic - adjustTarget) <= magicLabAdjust) { //should not move
+    adjust_flag = false; adjust_speed_i = 0;
+    adjusting_cnt = 0;
+    break;
   }
-  else { // to set lowest speed
-    if (speed_i<30) { speed_i++; cmd_state = 5;}
-    else { speed_i = 0; cmd_state = 0; speed_flag = false; }
+
+  if (Usonic > adjustTarget) { // shall move forward
+    if(digitalRead(FLidarZone1) < 1) {
+      if(Usonic <= 270) { //should not move
+        adjust_flag = false; 
+        adjust_speed_i = 0;
+        adjusting_cnt = 0;
+        break;
+      }
+      if (UsonicDiff >= 50) { // crawling speed
+        cmd_state = 1; // low speed
+        adjusting_cnt++;
+        break;
+      }
+      if(adjusting_cnt == 0) {
+        if (adjust_i<1) { adjust_i++; }
+        else { adjust_i = 0; cmd_state = 1; }
+      }
+      else {
+        delay(500);
+        adjusting_cnt = 0;
+      }
+    }
+    // something on the front side of the AGV                                                                                         
+  } else if (Usonic < adjustTarget) { // shall move backward
+    if(digitalRead(BLidarZone1) < 1) {
+      if(Usonic >= 1022) { //should not move
+        adjust_flag = false; 
+        adjust_speed_i = 0;
+        adjusting_cnt = 0;
+        break;
+      }
+      if(UsonicDiff >= 50) { // crawling speed
+        cmd_state = 2; // low speed
+        adjusting_cnt++;
+        break;
+      }
+      if(adjusting_cnt == 0) {
+        if (adjust_i<1) { adjust_i++;}
+        else { adjust_i = 0; cmd_state = 2; }
+      } else {
+        delay(500);
+        adjusting_cnt = 0;
+      }
+    }
+    // something on the back side of the AGV
   }
 }
 
+void set_speed(Speed speed) {
+  unsigned long first_trigger = millis();
+  if (speed == FAST) {
+    while (millis() - first_trigger < 1000) cmd_state = 6;
+    speed_level = FAST;
+  } else {
+    while (millis() - first_trigger < 1000) cmd_state = 5;
+    speed_level = SLOW;
+  }
+}
 
-void process_terminal(int incomingByte, int32_t target) { // This function to process the incoming terminal command
+void process_terminal(int incomingByte, int32_t target = 0) { // This function to process the incoming terminal command
   if (incomingByte == 32) { // space (idle)
     cmd_state = 0; 
     align_flag = false;
     stride_flag = false;
     adjust_flag = false;
-    speed_flag = false;
+    speed_level = false;
     false_alarm = false;
     Serial.println("Reset");
-  }
-  else if ((incomingByte == 87) || (incomingByte == 119)) { // W or w (forward)
-    // if(lUsonic > 180 && rUsonic > 180)  // if both sensors are not blocked (100 mm == 180 ADC)
-    if(digitalRead(FLidarZone1) < 1) {  // if front sensor is not blocked
-      cmd_state = 1;
-    }
-    else cmd_state = 0;
-    } 
-  else if ((incomingByte == 83) || (incomingByte == 115)) { // S or s (backward)
-    if(digitalRead(BLidarZone1) < 1) {  // if front sensor is not blocked
-      cmd_state = 2;
-    }
-    else cmd_state = 0;
-  } 
-  else if ((incomingByte == 81) || (incomingByte == 113)) { // Q or q (ccw)
-    // if(lTof > 3448 && rTof > 20 && lUsonic > 390 && rUsonic > 390) // L, RTOF > 650 mm , L, RUSONIC > 200 mm
-    if(digitalRead(FLidarZone1) < 1 && digitalRead(FLidarZone2) < 1 && digitalRead(BLidarZone1) < 1 && digitalRead(BLidarZone2) < 1) { 
-      cmd_state = 3;
-    }
-    else cmd_state = 0;
-  } 
-  else if ((incomingByte == 69) || (incomingByte == 101)) { // E or e (cw)
-    // if(lTof > 3448 && rTof > 20 && lUsonic > 390 && rUsonic > 390) // L, RTOF > 650 mm , L, RUSONIC > 200 mm
-    if(digitalRead(FLidarZone1) < 1 && digitalRead(FLidarZone2) < 1 && digitalRead(BLidarZone1) < 1 && digitalRead(BLidarZone2) < 1) {
-      cmd_state = 4; 
-    }
-    else cmd_state = 0;
-  } 
-  else if (incomingByte == 45) cmd_state = 5; // - (slower)
-  else if (incomingByte == 61) cmd_state = 6; // = (faster)
-  else if ((incomingByte == 65) || (incomingByte == 97)) { // A or a (left)
-    // if(lTof > 521) // if left sensor is not blocked (100 mm == 521 ADC)
-    if(digitalRead(BLidarZone2) < 1) {
-      cmd_state = 7; // A or a (left)
-    }
-    else cmd_state = 0;
-  }
-  else if ((incomingByte == 68) || (incomingByte == 100)) { // D or d (right)
-    // if(rTof > 20) // if right sensor is not blocked (100 mm == 20 ADC)
-    if(digitalRead(FLidarZone2) < 1) {
-      cmd_state = 8;
-    }
-    else cmd_state = 0;
-  }
-  else if ((incomingByte == 77) || (incomingByte == 109)) { // M or m (align)
+  } else if ((incomingByte == 87 || incomingByte == 119) && digitalRead(FLidarZone1) < 1) { // W or w (forward) if front sensor is not blocked
+    cmd_state = 1;
+  } else if (incomingByte == 83 || incomingByte == 115) { // S or s (backward)
+    cmd_state = 2; 
+  } else if ((incomingByte == 81 || incomingByte == 113) && digitalRead(FLidarZone1) < 1 && digitalRead(FLidarZone2) < 1 &&
+            digitalRead(BLidarZone1) < 1 && digitalRead(BLidarZone2) < 1) { // Q or q (ccw)
+    cmd_state = 3;
+  } else if ((incomingByte == 69 || incomingByte == 101) && digitalRead(FLidarZone1) < 1 && digitalRead(FLidarZone2) < 1 && 
+            digitalRead(BLidarZone1) < 1 && digitalRead(BLidarZone2) < 1) { // E or e (cw)
+    cmd_state = 4;
+  } else if (incomingByte == 45) { // (slower)
+    cmd_state = 5; 
+  } else if (incomingByte == 61) { // = (faster)
+    cmd_state = 6; 
+  } else if ((incomingByte == 65 || incomingByte == 97) && digitalRead(BLidarZone2) < 1) { // A or a (left)
+    cmd_state = 7; // A or a (left)
+  } else if ((incomingByte == 68 || incomingByte == 100) && digitalRead(FLidarZone2) < 1) { // D or d (right)
+    cmd_state = 8;
+  } else if ((incomingByte == 77) || (incomingByte == 109)) { // M or m (align)
     align_flag = true; 
-  }
-  else if ((incomingByte == 67) || (incomingByte == 99)) { // C or c (stride)
+  } else if ((incomingByte == 67) || (incomingByte == 99)) { // C or c (stride)
     if(target <= 18655 && target >= 521) { // receiving range of 100 - 3500 mm only
       strideTarget = target;
       stride_flag = true;
@@ -485,8 +444,7 @@ void process_terminal(int incomingByte, int32_t target) { // This function to pr
       Serial.print(',');
     }
     else stride_flag = false;
-  }
-  else if ((incomingByte == 78) || (incomingByte == 110)) { // N or n (adjust)
+  } else if ((incomingByte == 78) || (incomingByte == 110)) { // N or n (adjust)
     if(target <= 1002 && target >= 179) { // receiving range of 100 - 490 mm only
       adjustTarget = target;
       adjust_flag = true; 
@@ -495,22 +453,19 @@ void process_terminal(int incomingByte, int32_t target) { // This function to pr
       Serial.print(',');
     }
     else adjust_flag = false;
-  }
-  else if ((incomingByte == 80) || (incomingByte == 112)) { // P or p (printTOF)
+  } else if ((incomingByte == 80) || (incomingByte == 112)) { // P or p (printTOF)
     printTOF_flag = true; 
-  }
-  else if(incomingByte == '[') { // [ (print current state)
+  } else if(incomingByte == '[') { // [ (print current state)
     print_state_flag = true;
-  }
-  else if(incomingByte == 'O' || incomingByte == 'o') { // O or o (print sonic)
+  } else if(incomingByte == 'O' || incomingByte == 'o') { // O or o (print sonic)
     printSONIC_flag = true;
-  }
-  else if(incomingByte == 'U' || incomingByte == 'u') { // U or u (print ceiling Tof)
+  } else if(incomingByte == 'U' || incomingByte == 'u') { // U or u (print ceiling Tof)
     ceil_flag = true;
-  }
-  else if(incomingByte == 'I' || incomingByte == 'i') {
+  } else if(incomingByte == 'I' || incomingByte == 'i') {
     prevT_OnStart = millis();
     onStart_speed = true;
+  } else {
+    cmd_state = 0;
   }
 }
 
@@ -520,114 +475,30 @@ void process_controller() {     // Function to receive PS2 input
     align_flag = false;
     stride_flag = false;
     adjust_flag = false;
-    speed_flag = false;
+    speed_level = false;
     false_alarm = false;
     Serial.println("Reset");
-  }
-  else if(ps2x.Button(PSB_PAD_UP) && ps2x.Button(PSB_R1)) { // Up pad (forward)
-    if(digitalRead(FLidarZone1) < 1) {  // if front sensor is not blocked
-      cmd_state = 1;
-    }
-    else cmd_state = 0;
-    }
-  else if (ps2x.Button(PSB_PAD_DOWN) && ps2x.Button(PSB_R1)) {// Down pad (backward)
-    if(digitalRead(BLidarZone1) < 1) {  // if back sensor is not blocked
-      cmd_state = 2;
-    }
-    else cmd_state = 0;
-  }
-  else if (ps2x.Button(PSB_SQUARE)) { // L1 (ccw)
-    // if(lTof > 3448 && rTof > 20 && lUsonic > 390 && rUsonic > 390) // L, RTOF > 650 mm , L, RUSONIC > 200 mm
-    if(digitalRead(FLidarZone1) < 1 && digitalRead(FLidarZone2) < 1 && digitalRead(BLidarZone1) < 1 && digitalRead(BLidarZone2) < 1) { 
-      cmd_state = 3;
-    }
-    else cmd_state = 0;
-  } 
-  else if (ps2x.Button(PSB_CIRCLE) && ps2x.Button(PSB_R1)) { // R1 (cw)
-    // if(lTof > 3448 && rTof > 20 && lUsonic > 390 && rUsonic > 390) // L, RTOF > 650 mm , L, RUSONIC > 200 mm
-    if(digitalRead(FLidarZone1) < 1 && digitalRead(FLidarZone2) < 1 && digitalRead(BLidarZone1) < 1 && digitalRead(BLidarZone2) < 1) {
-      cmd_state = 4; 
-    }
-    else cmd_state = 0;
-  } 
-  else if (ps2x.Button(PSB_CROSS) && ps2x.Button(PSB_R1)) {
+  } else if(ps2x.Button(PSB_PAD_UP) && ps2x.Button(PSB_R1) && digitalRead(FLidarZone1) < 1) { // Up pad (forward), check that front sensor is not blocked
+    cmd_state = 1;
+  } else if (ps2x.Button(PSB_PAD_DOWN) && ps2x.Button(PSB_R1)) { // Down pad (backward)
+    cmd_state = 2;
+  } else if (ps2x.Button(PSB_PAD_LEFT) && ps2x.Button(PSB_R1) && digitalRead(BLidarZone2) < 1) { // Left pad (left), check that left sensor is not blocked
+    cmd_state = 7; // A or a (left)
+  } else if (ps2x.Button(PSB_PAD_RIGHT) && ps2x.Button(PSB_R1) && digitalRead(FLidarZone2) < 1) { // Right pad (right), check that right sensor is not blocked
+    cmd_state = 8;
+  } else if (ps2x.Button(PSB_SQUARE) && digitalRead(FLidarZone1) < 1 && digitalRead(FLidarZone2) < 1 && 
+            digitalRead(BLidarZone1) < 1 && digitalRead(BLidarZone2) < 1) { // L1 (ccw)
+    cmd_state = 3;
+  } else if (ps2x.Button(PSB_CIRCLE) && ps2x.Button(PSB_R1) && digitalRead(FLidarZone1) < 1 && digitalRead(FLidarZone2) < 1 && 
+            digitalRead(BLidarZone1) < 1 && digitalRead(BLidarZone2) < 1) { // R1 (cw)
+    cmd_state = 4; 
+  } else if (ps2x.Button(PSB_CROSS) && ps2x.Button(PSB_R1)) {
     unsigned long first_trigger = millis();
-    while (millis() - first_trigger < 1000) cmd_state = 5;    // - (slower)
-  }
-  else if (ps2x.Button(PSB_TRIANGLE) && ps2x.Button(PSB_R1)) {
+    while (millis() - first_trigger < 1000) cmd_state = 5;    // (slower)
+  } else if (ps2x.Button(PSB_TRIANGLE) && ps2x.Button(PSB_R1)) {
     unsigned long first_trigger = millis();
-    while (millis() - first_trigger < 1000) cmd_state = 6; // = (faster)
+    while (millis() - first_trigger < 1000) cmd_state = 6; // (faster)
+  } else {
+    cmd_state = 0;
   }
-  else if (ps2x.Button(PSB_PAD_LEFT) && ps2x.Button(PSB_R1)) { // Left pad (left)
-    // if(lTof > 521) // if left sensor is not blocked (100 mm == 521 ADC)
-    if(digitalRead(BLidarZone2) < 1) {
-      cmd_state = 7; // A or a (left)
-    }
-    else cmd_state = 0;
-  }
-  else if (ps2x.Button(PSB_PAD_RIGHT) && ps2x.Button(PSB_R1)) { // Right pad (right)
-    // if(rTof > 20) // if right sensor is not blocked (100 mm == 20 ADC)
-    if(digitalRead(FLidarZone2) < 1) {
-      cmd_state = 8;
-    }
-    else cmd_state = 0;
-  }
-}
-
-void speed_to_lowest() {
-  if(adjust_speed_i == 0) {
-    prev_time = millis();
-    adjust_speed_i++;
-  }
-  if(millis() - prev_time < 3000 || millis() - prevT_OnStart < 3500) {
-    cmd_state = 5;
-  }
-  else {
-    adjust_lowest = true;
-    onStart_speed = false;
-    speed_flag = false;
-  }
-}
-
-void controller_setup() {
-  delay(500);  //added delay to give wireless ps2 module some time to startup, before configuring it
-     
-  //setup pins and settings: GamePad(clock, command, attention, data, Pressures?, Rumble?) check for error
-  ps2_error = ps2x.config_gamepad(PS2_CLK, PS2_CMD, PS2_SEL, PS2_DAT, pressures, rumble);
-  
-  if(ps2_error == 0){
-    Serial.print("Found Controller, configured successful ");
-    Serial.print("pressures = ");
-    if (pressures) {
-      Serial.println("true ");
-    }
-    else {
-      Serial.println("false");
-    }
-    Serial.print("rumble = ");
-    if (rumble) {
-      Serial.println("true)");
-    }
-    else {
-      Serial.println("false");
-    }
-  }  
-  else if(ps2_error == 1)
-    Serial.println("No controller found, check wiring, see readme.txt to enable debug. visit www.billporter.info for troubleshooting tips");
-   
-  else if(ps2_error == 2)
-    Serial.println("Controller found but not accepting commands. see readme.txt to enable debug. Visit www.billporter.info for troubleshooting tips");
-
-  else if(ps2_error == 3)
-    Serial.println("Controller refusing to enter Pressures mode, may not support it. ");
-  
-  type = ps2x.readType(); 
-  switch(type) {
-    case 0:
-      Serial.println("Unknown Controller type found ");
-      break;
-    case 1:
-      Serial.println("DualShock Controller found ");
-      break;
-   }
 }
