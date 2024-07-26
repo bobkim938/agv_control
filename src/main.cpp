@@ -70,10 +70,10 @@ const uint8_t magicLabAlign = 1;
 const uint8_t magicLabStride = 5; // equivalent to 1 mm
 const uint8_t magicLabAdjust = 2;
 
-bool align_flag, stride_flag, adjust_flag, printTOF_flag, printSONIC_flag, print_state_flag, false_alarm = false;
+bool align_flag, stride_flag, adjust_flag, printTOF_flag, printSONIC_flag, strideSpeed_flag, print_state_flag, false_alarm = false;
 bool onStart_speed = true; // reduce speed when starting
 bool ceil_flag = false;
-uint8_t align_i, stride_i, adjust_i, cmd_state = 0;
+uint8_t align_i, stride_i, adjust_i, speed_i, cmd_state = 0;
 uint8_t adjusting_cnt = 0;
 int32_t adjustTarget;
 int32_t lUsonicRead, rUsonicRead, lTofRead, rTofRead, CeilTofRead;
@@ -138,6 +138,7 @@ void loop() { // put your main code here, to run repeatedly:
     align_flag = false;
     stride_flag = false;
     adjust_flag = false;
+    strideSpeed_flag = false;
   }
 
   if(onStart_speed) {
@@ -294,27 +295,18 @@ void stride_control() {
     if(digitalRead(FLidarZone2) < 1) {
       if (rTof > 18) { // check right clearance (25 ADC value)
         if (lTofDiff < (magicLabStride*120*1.0) || rTof < 50) { //crawling speed
-          if (current_speed == FAST) {
-            cmd_state = 0;
-            set_speed(SLOW);
-          }
+          if (strideSpeed_flag) set_speed(false);
           else {
             if (stride_i<1) { stride_i++; cmd_state = 0; }
             else { stride_i = 0; cmd_state = 8; } 
           }
         }
         else if (lTofDiff < (magicLabStride*400*1.0) && lTofDiff >= (magicLabStride*120*1.0)) { // low speed
-          if (current_speed == FAST) {
-            cmd_state = 0;
-            set_speed(SLOW);
-          }
+          if (strideSpeed_flag) set_speed(false);
           else cmd_state = 8;       
         }
         else if (lTofDiff >= (magicLabStride*400*1.0)) { // high speed
-        if (current_speed == SLOW) {
-          cmd_state = 0;
-          set_speed(FAST);
-        }
+        if (!strideSpeed_flag) set_speed(true);
         else cmd_state = 8; 
         }
       }
@@ -330,24 +322,18 @@ void stride_control() {
     if(digitalRead(BLidarZone2) < 1) {
       if (lTof > 520) { // check left clearance
         if(lTofDiff > (magicLabStride*120*-1.0) || lTof < 1040) { //crawling speed
-          if (current_speed == FAST) set_speed(SLOW);
+          if (strideSpeed_flag) set_speed(false);
           else {
             if (stride_i<1) { stride_i++; cmd_state = 0; }
             else { stride_i = 0; cmd_state = 7; } 
           }
         }
         else if (lTofDiff <= (magicLabStride*120*-1.0) && lTofDiff > (magicLabStride*400*-1.0)) { // low speed
-          if (current_speed == FAST) {
-            cmd_state = 0;
-            set_speed(SLOW);
-          }
+          if (strideSpeed_flag) set_speed(false);
           else cmd_state = 7;       
         }
         else if (lTofDiff <= (magicLabStride*400*-1.0)) { // high speed
-          if (current_speed == SLOW) {
-            cmd_state = 0;
-            set_speed(FAST);
-          }
+          if (!strideSpeed_flag) set_speed(true);
           else cmd_state = 7; 
         }
       }
@@ -361,6 +347,17 @@ void stride_control() {
   }
   else { //should not move
     cmd_state = 0; stride_flag = false;
+  }
+}
+
+void strideSpeed(bool speed) {
+  if (speed) { // to set highest speed
+    if (speed_i<30) { speed_i++; cmd_state = 6; }
+    else { speed_i = 0; cmd_state = 0; strideSpeed_flag = true; }
+  }
+  else { // to set lowest speed
+    if (speed_i<30) { speed_i++; cmd_state = 5;}
+    else { speed_i = 0; cmd_state = 0; strideSpeed_flag = false; }
   }
 }
 
@@ -429,24 +426,13 @@ void adjust_control() {
     }
 }
 
-// void set_speed(bool speed) {
-//   if (speed) { // to set highest speed
-//     if (speed_i<30) { speed_i++; cmd_state = 6; }
-//     else { speed_i = 0; cmd_state = 0; speed_flag = true; }
-//   }
-//   else { // to set lowest speed
-//     if (speed_i<30) { speed_i++; cmd_state = 5;}
-//     else { speed_i = 0; cmd_state = 0; speed_flag = false; }
-//   }
-// }
-
-
 void process_terminal(int incomingByte, int32_t target) { // This function to process the incoming terminal command
   if (incomingByte == 32) { // space (idle)
     cmd_state = 0; 
     align_flag = false;
     stride_flag = false;
     adjust_flag = false;
+    strideSpeed_flag = false;
     false_alarm = false;
     Serial.println("Reset");
   }
@@ -540,6 +526,7 @@ void process_controller() {     // Function to receive PS2 input
     align_flag = false;
     stride_flag = false;
     adjust_flag = false;
+    strideSpeed_flag = false;
     false_alarm = false;
     Serial.println("Reset");
   }
@@ -600,11 +587,13 @@ void set_speed(SPEED speed) {
       cmd_state = 6;
     }
     current_speed = FAST;
+    strideSpeed_flag = true;
   } else {
     while (millis() - first_trigger < 1000) {
       cmd_state = 5;
     }
     current_speed = SLOW;
+    strideSpeed_flag = false;
   }
 }
 
