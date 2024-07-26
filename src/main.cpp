@@ -70,6 +70,7 @@ const uint8_t magicLabAlign = 1;
 const uint8_t magicLabStride = 5; // equivalent to 1 mm
 const uint8_t magicLabAdjust = 2;
 
+bool front_zone, right_zone, back_zone, backSLOWzone, left_zone;
 bool align_flag, stride_flag, adjust_flag, printTOF_flag, printSONIC_flag, strideSpeed_flag, print_state_flag, false_alarm = false;
 bool onStart_speed = true; // reduce speed when starting
 bool ceil_flag = false;
@@ -144,6 +145,10 @@ void loop() { // put your main code here, to run repeatedly:
   if(onStart_speed) {
     set_speed(SLOW);
     onStart_speed = false;
+  }
+
+  if(backSLOWzone) {
+    set_speed(SLOW);
   }
   
   if (align_flag) align_control(); 
@@ -254,6 +259,11 @@ void read_sensor() { // This function to read sensor data and average them
   // Serial.println(ADS.readADC(0));
   // Serial.println(lTofRead);
   // Serial.println(lTof);
+  front_zone = digitalRead(FLidarZone1);
+  right_zone = digitalRead(FLidarZone2);
+  back_zone = digitalRead(BLidarZone1);
+  backSLOWzone = digitalRead(BLidarZone3);
+  left_zone = digitalRead(BLidarZone2);
   Usonic = (lUsonic + rUsonic) * 0.5;
   rTofRead = rTofFilter.add(analogRead(R_tof)); rTof = rTofFilter.get();
 }
@@ -557,12 +567,10 @@ void process_controller() {     // Function to receive PS2 input
     else cmd_state = 0;
   } 
   else if (ps2x.Button(PSB_CROSS) && ps2x.Button(PSB_R1)) {
-    unsigned long first_trigger = millis();
-    while (millis() - first_trigger < 1000) cmd_state = 5;    // - (slower)
+    set_speed(SLOW);    // - (slower)
   }
   else if (ps2x.Button(PSB_TRIANGLE) && ps2x.Button(PSB_R1)) {
-    unsigned long first_trigger = millis();
-    while (millis() - first_trigger < 1000) cmd_state = 6; // = (faster)
+    set_speed(FAST); // = (faster)
   }
   else if (ps2x.Button(PSB_PAD_LEFT) && ps2x.Button(PSB_R1)) { // Left pad (left)
     // if(lTof > 521) // if left sensor is not blocked (100 mm == 521 ADC)
