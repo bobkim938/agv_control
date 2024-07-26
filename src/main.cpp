@@ -136,6 +136,7 @@ void loop() { // put your main code here, to run repeatedly:
     adjust_flag = false;
     speed_flag = false;
   }
+  
   if (align_flag) align_control(); 
   else if (stride_flag) stride_control();
   else if (adjust_flag) {
@@ -143,6 +144,14 @@ void loop() { // put your main code here, to run repeatedly:
     else adjust_control();
   }
   else if(onStart_speed) speed_to_lowest();
+  else {
+    // dualshock controller
+    if(ps2_error == 1){ // reset board
+      resetFunc();
+    }
+    ps2x.read_gamepad(false, vibrate); // read controller and set large motor to spin at 'vibrate' speed
+    process_controller();
+  }
 
   if (printTOF_flag) {
     Serial.print('p'); Serial.print(lTof); Serial.print(' '); Serial.print(rTof); Serial.print(',');
@@ -179,13 +188,6 @@ void loop() { // put your main code here, to run repeatedly:
     else process_terminal(incomingByte);
     Serial.flush();
   }
-  
-  // dualshock controller
-  if(ps2_error == 1){ // reset board
-    resetFunc();
-  }
-  ps2x.read_gamepad(false, vibrate); // read controller and set large motor to spin at 'vibrate' speed
-  process_controller();
 
   delayMicroseconds(50000); // TODO Very important 
 }
