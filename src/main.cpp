@@ -5,6 +5,8 @@
 #include <ADS1X15.h>
 #include <PS2X_lib.h>  //for v1.6
 
+enum SPEED {SLOW, FAST};
+
 #define R_usonic A0 // 1st
 #define L_usonic A1 // 2nd
 #define R_tof A3
@@ -21,11 +23,13 @@
 #define FLidarZone3 30
 #define BLidarZone1 34 // back zone
 #define BLidarZone2 38 // left zone
-#define BLidarZone3 42
+#define BLidarZone3 42 // back zone for SLOW DOWN
 
 // Emergency Stop Interrupt
 const uint8_t interruptPin = 3;
 volatile bool estopFlag;
+
+SPEED current_speed;
 
 PS2X ps2x; // create PS2 Controller Class
 int ps2_error = 0;
@@ -40,7 +44,7 @@ void stride_control();
 void adjust_control();
 void set_speed(bool speed);
 void process_terminal(int incomingByte, int32_t target = 0);
-void speed_to_lowest();
+void set_speed(SPEED speed);
 void estop(); // interrupt for estop pressed, check for debounce
 void unstop(); // interrupt for estop released, check for debounce
 void controller_setup(); // PS2 controller setup
@@ -66,16 +70,16 @@ const uint8_t magicLabAlign = 1;
 const uint8_t magicLabStride = 5; // equivalent to 1 mm
 const uint8_t magicLabAdjust = 2;
 
-bool align_flag, stride_flag, adjust_flag, printTOF_flag, printSONIC_flag, speed_flag, print_state_flag, onStart_speed, false_alarm = false;
+bool align_flag, stride_flag, adjust_flag, printTOF_flag, printSONIC_flag, print_state_flag, false_alarm = false;
+bool onStart_speed = true; // reduce speed when starting
 bool ceil_flag = false;
-uint8_t align_i, stride_i, adjust_i, speed_i, cmd_state, adjust_speed_i = 0;
+uint8_t align_i, stride_i, adjust_i, cmd_state = 0;
 uint8_t adjusting_cnt = 0;
 int32_t adjustTarget;
 int32_t lUsonicRead, rUsonicRead, lTofRead, rTofRead, CeilTofRead;
 int32_t lUsonic, rUsonic, Usonic, UsonicDiff, rTof, CeilTof;
 int32_t lTof, strideTarget, prev_ltof;
 int32_t lTofDiff;
-bool adjust_lowest = false;
 bool check_c = true;
 unsigned long prev_time, prevT_OnStart;
 MovingAverage <int, 8> lUsonicFilter;
@@ -134,16 +138,19 @@ void loop() { // put your main code here, to run repeatedly:
     align_flag = false;
     stride_flag = false;
     adjust_flag = false;
-    speed_flag = false;
+  }
+
+  if(onStart_speed) {
+    set_speed(SLOW);
+    onStart_speed = false;
   }
   
   if (align_flag) align_control(); 
   else if (stride_flag) stride_control();
   else if (adjust_flag) {
-    if (!adjust_lowest) speed_to_lowest();
+    if (current_speed == FAST) set_speed(SLOW);
     else adjust_control();
   }
-  else if(onStart_speed) speed_to_lowest();
   else {
     // dualshock controller
     if(ps2_error == 1){ // reset board
@@ -287,18 +294,18 @@ void stride_control() {
     if(digitalRead(FLidarZone2) < 1) {
       if (rTof > 18) { // check right clearance (25 ADC value)
         if (lTofDiff < (magicLabStride*120*1.0) || rTof < 50) { //crawling speed
-          if (speed_flag) set_speed(false);
+          if (current_speed = FAST) set_speed(SLOW);
           else {
             if (stride_i<1) { stride_i++; cmd_state = 0; }
             else { stride_i = 0; cmd_state = 8; } 
           }
         }
         else if (lTofDiff < (magicLabStride*400*1.0) && lTofDiff >= (magicLabStride*120*1.0)) { // low speed
-          if (speed_flag) set_speed(false);
+          if (current_speed == FAST) set_speed(SLOW);
           else cmd_state = 8;       
         }
         else if (lTofDiff >= (magicLabStride*400*1.0)) { // high speed
-        if (!speed_flag) set_speed(true);
+        if (current_speed = SLOW) set_speed(FAST);
         else cmd_state = 8; 
         }
       }
@@ -314,18 +321,18 @@ void stride_control() {
     if(digitalRead(BLidarZone2) < 1) {
       if (lTof > 520) { // check left clearance
         if(lTofDiff > (magicLabStride*120*-1.0) || lTof < 1040) { //crawling speed
-          if (speed_flag) set_speed(false);
+          if (current_speed == FAST) set_speed(SLOW);
           else {
             if (stride_i<1) { stride_i++; cmd_state = 0; }
             else { stride_i = 0; cmd_state = 7; } 
           }
         }
         else if (lTofDiff <= (magicLabStride*120*-1.0) && lTofDiff > (magicLabStride*400*-1.0)) { // low speed
-          if (speed_flag) set_speed(false);
+          if (current_speed = FAST) set_speed(SLOW);
           else cmd_state = 7;       
         }
         else if (lTofDiff <= (magicLabStride*400*-1.0)) { // high speed
-          if (!speed_flag) set_speed(true);
+          if (current_speed == SLOW) set_speed(FAST);
           else cmd_state = 7; 
         }
       }
@@ -365,8 +372,7 @@ void adjust_control() {
             }
           }
           else { //should not move
-            cmd_state = 0; adjust_flag = false; adjust_speed_i = 0;
-            adjust_lowest = false;  adjusting_cnt = 0;
+            cmd_state = 0; adjust_flag = false; adjusting_cnt = 0;
           } 
         }
         else { // something on the front side of the AGV
@@ -394,8 +400,7 @@ void adjust_control() {
             }
           }
           else { //should not move
-            cmd_state = 0; adjust_flag = false; adjust_speed_i = 0;
-            adjust_lowest = false;  adjusting_cnt = 0;
+            cmd_state = 0; adjust_flag = false; adjusting_cnt = 0;
           }
         }
         else { // something on the back side of the AGV
@@ -405,21 +410,20 @@ void adjust_control() {
 
     }
     else { //should not move
-      cmd_state = 0; adjust_flag = false; adjust_speed_i = 0;
-      adjust_lowest = false; adjusting_cnt = 0;
+      cmd_state = 0; adjust_flag = false; adjusting_cnt = 0;
     }
 }
 
-void set_speed(bool speed) {
-  if (speed) { // to set highest speed
-    if (speed_i<30) { speed_i++; cmd_state = 6; }
-    else { speed_i = 0; cmd_state = 0; speed_flag = true; }
-  }
-  else { // to set lowest speed
-    if (speed_i<30) { speed_i++; cmd_state = 5;}
-    else { speed_i = 0; cmd_state = 0; speed_flag = false; }
-  }
-}
+// void set_speed(bool speed) {
+//   if (speed) { // to set highest speed
+//     if (speed_i<30) { speed_i++; cmd_state = 6; }
+//     else { speed_i = 0; cmd_state = 0; speed_flag = true; }
+//   }
+//   else { // to set lowest speed
+//     if (speed_i<30) { speed_i++; cmd_state = 5;}
+//     else { speed_i = 0; cmd_state = 0; speed_flag = false; }
+//   }
+// }
 
 
 void process_terminal(int incomingByte, int32_t target) { // This function to process the incoming terminal command
@@ -428,7 +432,6 @@ void process_terminal(int incomingByte, int32_t target) { // This function to pr
     align_flag = false;
     stride_flag = false;
     adjust_flag = false;
-    speed_flag = false;
     false_alarm = false;
     Serial.println("Reset");
   }
@@ -576,18 +579,14 @@ void process_controller() {     // Function to receive PS2 input
   }
 }
 
-void speed_to_lowest() {
-  if(adjust_speed_i == 0) {
-    prev_time = millis();
-    adjust_speed_i++;
-  }
-  if(millis() - prev_time < 3000 || millis() - prevT_OnStart < 3500) {
-    cmd_state = 5;
-  }
-  else {
-    adjust_lowest = true;
-    onStart_speed = false;
-    speed_flag = false;
+void set_speed(SPEED speed) {
+  unsigned long first_trigger = millis();
+  if (speed == FAST) {
+    while (millis() - first_trigger < 1000) cmd_state = 6;
+    current_speed = FAST;
+  } else {
+    while (millis() - first_trigger < 1000) cmd_state = 5;
+    current_speed = SLOW;
   }
 }
 
