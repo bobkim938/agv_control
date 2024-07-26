@@ -547,11 +547,17 @@ void process_controller() {     // Function to receive PS2 input
     //   cmd_state = 2;
     // }
     // else cmd_state = 0;
-    if(digitalRead(BLidarZone1) > 0 && digitalRead(BLidarZone3) > 0) { // both regions indicating obstacle
+    // if(digitalRead(BLidarZone1) > 0 && digitalRead(BLidarZone3) > 0) { // both regions indicating obstacle
+    //   cmd_state = 0;
+    // }
+    // else if(digitalRead(BLidarZone3) > 0) {
+    //   set_speed(SLOW);
+    // }
+    // else {
+    //   cmd_state = 2;
+    // }
+    if((current_speed == FAST && digitalRead(BLidarZone3) == 1) || digitalRead(BLidarZone1) == 1) {
       cmd_state = 0;
-    }
-    else if(digitalRead(BLidarZone3) > 0) {
-      set_speed(SLOW);
     }
     else {
       cmd_state = 2;
