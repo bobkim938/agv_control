@@ -530,7 +530,7 @@ void process_controller() {     // Function to receive PS2 input
     false_alarm = false;
     Serial.println("Reset");
   }
-  else if ((ps2x.Button(PSB_CROSS) && ps2x.Button(PSB_R1)) || digitalRead(BLidarZone3) > 0) {
+  else if (ps2x.Button(PSB_CROSS) && ps2x.Button(PSB_R1)) {
     set_speed(SLOW);    // - (slower)
   }
   else if (ps2x.Button(PSB_TRIANGLE) && ps2x.Button(PSB_R1)) {
@@ -543,10 +543,19 @@ void process_controller() {     // Function to receive PS2 input
     else cmd_state = 0;
     }
   else if (ps2x.Button(PSB_PAD_DOWN) && ps2x.Button(PSB_R1)) {// Down pad (backward)
-    if(digitalRead(BLidarZone1) < 1) {  // if back sensor is not blocked
+    // if(digitalRead(BLidarZone1) < 1) {  // if back sensor is not blocked
+    //   cmd_state = 2;
+    // }
+    // else cmd_state = 0;
+    if(digitalRead(BLidarZone1) > 0 && digitalRead(BLidarZone3) > 0) { // both regions indicating obstacle
+      cmd_state = 0;
+    }
+    else if(digitalRead(BLidarZone3) > 0) {
+      set_speed(SLOW);
+    }
+    else {
       cmd_state = 2;
     }
-    else cmd_state = 0;
   }
   else if (ps2x.Button(PSB_SQUARE)) { // L1 (ccw)
     // if(lTof > 3448 && rTof > 20 && lUsonic > 390 && rUsonic > 390) // L, RTOF > 650 mm , L, RUSONIC > 200 mm
