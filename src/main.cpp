@@ -294,18 +294,27 @@ void stride_control() {
     if(digitalRead(FLidarZone2) < 1) {
       if (rTof > 18) { // check right clearance (25 ADC value)
         if (lTofDiff < (magicLabStride*120*1.0) || rTof < 50) { //crawling speed
-          if (current_speed == FAST) set_speed(SLOW);
+          if (current_speed == FAST) {
+            cmd_state = 0;
+            set_speed(SLOW);
+          }
           else {
             if (stride_i<1) { stride_i++; cmd_state = 0; }
             else { stride_i = 0; cmd_state = 8; } 
           }
         }
         else if (lTofDiff < (magicLabStride*400*1.0) && lTofDiff >= (magicLabStride*120*1.0)) { // low speed
-          if (current_speed == FAST) set_speed(SLOW);
+          if (current_speed == FAST) {
+            cmd_state = 0;
+            set_speed(SLOW);
+          }
           else cmd_state = 8;       
         }
         else if (lTofDiff >= (magicLabStride*400*1.0)) { // high speed
-        if (current_speed == SLOW) set_speed(FAST);
+        if (current_speed == SLOW) {
+          cmd_state = 0;
+          set_speed(FAST);
+        }
         else cmd_state = 8; 
         }
       }
@@ -328,11 +337,17 @@ void stride_control() {
           }
         }
         else if (lTofDiff <= (magicLabStride*120*-1.0) && lTofDiff > (magicLabStride*400*-1.0)) { // low speed
-          if (current_speed == FAST) set_speed(SLOW);
+          if (current_speed == FAST) {
+            cmd_state = 0;
+            set_speed(SLOW);
+          }
           else cmd_state = 7;       
         }
         else if (lTofDiff <= (magicLabStride*400*-1.0)) { // high speed
-          if (current_speed == SLOW) set_speed(FAST);
+          if (current_speed == SLOW) {
+            cmd_state = 0;
+            set_speed(FAST);
+          }
           else cmd_state = 7; 
         }
       }
@@ -581,10 +596,14 @@ void process_controller() {     // Function to receive PS2 input
 void set_speed(SPEED speed) {
   unsigned long first_trigger = millis();
   if (speed == FAST) {
-    while (millis() - first_trigger < 1000) cmd_state = 6;
+    while (millis() - first_trigger < 1000) {
+      cmd_state = 6;
+    }
     current_speed = FAST;
   } else {
-    while (millis() - first_trigger < 1000) cmd_state = 5;
+    while (millis() - first_trigger < 1000) {
+      cmd_state = 5;
+    }
     current_speed = SLOW;
   }
 }
