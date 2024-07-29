@@ -369,7 +369,7 @@ void adjust_control() {
           if(Usonic > 270) {
             if (UsonicDiff < 50) { // crawling speed
               if(adjusting_cnt == 0) {
-                if (adjust_i<1) { adjust_i++; cmd_state = 0;}
+                if (adjust_i<2) { adjust_i++; cmd_state = 0;}
                 else { adjust_i = 0; cmd_state = 1; }
               }
               else {                                      
@@ -397,7 +397,7 @@ void adjust_control() {
           if(Usonic < 1022) {
             if(UsonicDiff < 50) { // crawling speed
               if(adjusting_cnt == 0) {
-                if (adjust_i<1) { adjust_i++; cmd_state = 0;}
+                if (adjust_i<2) { adjust_i++; cmd_state = 0;}
                 else { adjust_i = 0; cmd_state = 2; }
               }
               else {
