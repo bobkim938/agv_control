@@ -537,25 +537,19 @@ void process_controller() {     // Function to receive PS2 input
     set_speed(FAST); // = (faster)
   }
   else if(ps2x.Button(PSB_PAD_UP) && ps2x.Button(PSB_R1)) { // Up pad (forward)
-    if(digitalRead(FLidarZone1) < 1) {  // if front sensor is not blocked
-      cmd_state = 1;
-    }
-    else cmd_state = 0;
-    }
-  else if (ps2x.Button(PSB_PAD_DOWN) && ps2x.Button(PSB_R1)) {// Down pad (backward)
-    // if(digitalRead(BLidarZone1) < 1) {  // if back sensor is not blocked
-    //   cmd_state = 2;
+    // if(digitalRead(FLidarZone1) < 1) {  // if front sensor is not blocked
+    //   cmd_state = 1;
     // }
     // else cmd_state = 0;
-    // if(digitalRead(BLidarZone1) > 0 && digitalRead(BLidarZone3) > 0) { // both regions indicating obstacle
-    //   cmd_state = 0;
     // }
-    // else if(digitalRead(BLidarZone3) > 0) {
-    //   set_speed(SLOW);
-    // }
-    // else {
-    //   cmd_state = 2;
-    // }
+    if((current_speed == FAST && digitalRead(FLidarZone3) == 1) || digitalRead(FLidarZone1) == 1) {
+      cmd_state = 0;
+    }
+    else {
+      cmd_state = 1;
+    }
+  }
+  else if (ps2x.Button(PSB_PAD_DOWN) && ps2x.Button(PSB_R1)) {// Down pad (backward)
     if((current_speed == FAST && digitalRead(BLidarZone3) == 1) || digitalRead(BLidarZone1) == 1) {
       cmd_state = 0;
     }
