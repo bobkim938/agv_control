@@ -542,7 +542,7 @@ void process_controller() {     // Function to receive PS2 input
     // }
     // else cmd_state = 0;
     // }
-    if((current_speed == FAST && digitalRead(FLidarZone3) == 1) || digitalRead(FLidarZone1) == 1) {
+    if((ps2x.Button(PSB_L1) || ((current_speed == FAST && digitalRead(FLidarZone3) == 1) || digitalRead(FLidarZone1) == 1))) {
       cmd_state = 0;
     }
     else {
@@ -550,7 +550,7 @@ void process_controller() {     // Function to receive PS2 input
     }
   }
   else if (ps2x.Button(PSB_PAD_DOWN) && ps2x.Button(PSB_R1)) {// Down pad (backward)
-    if((current_speed == FAST && digitalRead(BLidarZone3) == 1) || digitalRead(BLidarZone1) == 1) {
+    if((ps2x.Button(PSB_L1) || ((current_speed == FAST && digitalRead(BLidarZone3) == 1) || digitalRead(BLidarZone1) == 1))) {
       cmd_state = 0;
     }
     else {
@@ -573,14 +573,14 @@ void process_controller() {     // Function to receive PS2 input
   } 
   else if (ps2x.Button(PSB_PAD_LEFT) && ps2x.Button(PSB_R1)) { // Left pad (left)
     // if(lTof > 521) // if left sensor is not blocked (100 mm == 521 ADC)
-    if(digitalRead(BLidarZone2) < 1) {
+    if((ps2x.Button(PSB_L1) || (digitalRead(BLidarZone2) < 1))) {
       cmd_state = 7; // A or a (left)
     }
     else cmd_state = 0;
   }
   else if (ps2x.Button(PSB_PAD_RIGHT) && ps2x.Button(PSB_R1)) { // Right pad (right)
     // if(rTof > 20) // if right sensor is not blocked (100 mm == 20 ADC)
-    if(digitalRead(FLidarZone2) < 1) {
+    if((ps2x.Button(PSB_L1) || (digitalRead(FLidarZone2) < 1))) {
       cmd_state = 8;
     }
     else cmd_state = 0;
