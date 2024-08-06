@@ -260,13 +260,13 @@ void read_sensor() { // This function to read sensor data and average them
 
 void align_control() {
   UsonicDiff = lUsonic - rUsonic;
-  if(UsonicDiff <= 32) {
-    if (align_i<2) { // only enter the align_control after the count is reached
+  // if(UsonicDiff <= 32) {
+    if (align_i< 2) { // only enter the align_control after the count is reached
       align_i++; 
       cmd_state = 0; 
     }
     else { 
-      if(digitalRead(FLidarZone1) < 1 && digitalRead(BLidarZone1) < 1 && digitalRead(FLidarZone2) < 1 && digitalRead(BLidarZone2) < 1) {
+      // if(digitalRead(FLidarZone1) < 1 && digitalRead(BLidarZone1) < 1 && digitalRead(FLidarZone2) < 1 && digitalRead(BLidarZone2) < 1) {
         align_i = 0; 
         if (UsonicDiff > (magicLabAlign*1.0)) {
           cmd_state = 4; // should rotate cw
@@ -277,16 +277,16 @@ void align_control() {
           // Serial.println("CCW");
         }
         else { cmd_state = 0; align_flag = false; } // should not move
-      }
-      else {
-        cmd_state = 0;
-      }
+      // }
+      // else {
+      //   cmd_state = 0;
+      // }
     }
-  }
-  else {
-    cmd_state = 0;
-    align_flag = false;
-  }
+  // }
+  // else {
+  //   cmd_state = 0;
+  //   align_flag = false;
+  // }
 }
 
 void stride_control() {
@@ -365,7 +365,7 @@ void adjust_control() {
   int UsonicDiff = abs(adjustTarget - Usonic);
     if (abs(Usonic - adjustTarget) > magicLabAdjust) {
       if (Usonic > adjustTarget) { // shall move forward
-        if(digitalRead(FLidarZone1) < 1) {
+        // if(digitalRead(FLidarZone1) < 1) {
           if(Usonic > 270) {
             if (UsonicDiff < 50) { // crawling speed
               if(adjusting_cnt == 0) {
@@ -386,14 +386,14 @@ void adjust_control() {
           else { //should not move
             cmd_state = 0; adjust_flag = false; adjusting_cnt = 0;
           } 
-        }
-        else { // something on the front side of the AGV
-          cmd_state = 0;
-        }                                                                                          
+        // }
+        // else { // something on the front side of the AGV
+        //   cmd_state = 0;
+        // }                                                                                          
       }
       
       else if (Usonic < adjustTarget) { // shall move backward
-        if(digitalRead(BLidarZone1) < 1) {
+        // if(digitalRead(BLidarZone1) < 1) {
           if(Usonic < 1022) {
             if(UsonicDiff < 50) { // crawling speed
               if(adjusting_cnt == 0) {
@@ -414,10 +414,10 @@ void adjust_control() {
           else { //should not move
             cmd_state = 0; adjust_flag = false; adjusting_cnt = 0;
           }
-        }
-        else { // something on the back side of the AGV
-          cmd_state = 0;
-        }
+        // }
+        // else { // something on the back side of the AGV
+        //   cmd_state = 0;
+        // }
       }
 
     }
@@ -542,7 +542,7 @@ void process_controller() {     // Function to receive PS2 input
     // }
     // else cmd_state = 0;
     // }
-    if((current_speed == FAST && digitalRead(FLidarZone3) == 1) || digitalRead(FLidarZone1) == 1) {
+    if((!ps2x.Button(PSB_L1) && ((current_speed == FAST && digitalRead(FLidarZone3) == 1) || digitalRead(FLidarZone1) == 1))) {
       cmd_state = 0;
     }
     else {
@@ -550,7 +550,7 @@ void process_controller() {     // Function to receive PS2 input
     }
   }
   else if (ps2x.Button(PSB_PAD_DOWN) && ps2x.Button(PSB_R1)) {// Down pad (backward)
-    if((current_speed == FAST && digitalRead(BLidarZone3) == 1) || digitalRead(BLidarZone1) == 1) {
+    if((!ps2x.Button(PSB_L1) && ((current_speed == FAST && digitalRead(BLidarZone3) == 1) || digitalRead(BLidarZone1) == 1))) {
       cmd_state = 0;
     }
     else {
@@ -559,28 +559,36 @@ void process_controller() {     // Function to receive PS2 input
   }
   else if (ps2x.Button(PSB_SQUARE)) { // L1 (ccw)
     // if(lTof > 3448 && rTof > 20 && lUsonic > 390 && rUsonic > 390) // L, RTOF > 650 mm , L, RUSONIC > 200 mm
-    if(digitalRead(FLidarZone1) < 1 && digitalRead(FLidarZone2) < 1 && digitalRead(BLidarZone1) < 1 && digitalRead(BLidarZone2) < 1) { 
+    // if(digitalRead(FLidarZone1) < 1 && digitalRead(FLidarZone2) < 1 && digitalRead(BLidarZone1) < 1 && digitalRead(BLidarZone2) < 1) { 
+    //   cmd_state = 3;
+    // }
+    // else cmd_state = 0;
+    if(!ps2x.Button(PSB_L1) && (digitalRead(FLidarZone1) == 1 || digitalRead(FLidarZone2) == 1 || digitalRead(BLidarZone1) == 1 || digitalRead(BLidarZone2) == 1)) {
       cmd_state = 3;
     }
     else cmd_state = 0;
   } 
   else if (ps2x.Button(PSB_CIRCLE) && ps2x.Button(PSB_R1)) { // R1 (cw)
     // if(lTof > 3448 && rTof > 20 && lUsonic > 390 && rUsonic > 390) // L, RTOF > 650 mm , L, RUSONIC > 200 mm
-    if(digitalRead(FLidarZone1) < 1 && digitalRead(FLidarZone2) < 1 && digitalRead(BLidarZone1) < 1 && digitalRead(BLidarZone2) < 1) {
-      cmd_state = 4; 
+    // if(digitalRead(FLidarZone1) < 1 && digitalRead(FLidarZone2) < 1 && digitalRead(BLidarZone1) < 1 && digitalRead(BLidarZone2) < 1) {
+    //   cmd_state = 4; 
+    // }
+    // else cmd_state = 0;
+    if(!ps2x.Button(PSB_L1) && (digitalRead(FLidarZone1) == 1 || digitalRead(FLidarZone2) == 1 || digitalRead(BLidarZone1) == 1 || digitalRead(BLidarZone2) == 1)) {
+      cmd_state = 4;
     }
     else cmd_state = 0;
   } 
   else if (ps2x.Button(PSB_PAD_LEFT) && ps2x.Button(PSB_R1)) { // Left pad (left)
     // if(lTof > 521) // if left sensor is not blocked (100 mm == 521 ADC)
-    if(digitalRead(BLidarZone2) < 1) {
+    if((!ps2x.Button(PSB_L1) && (digitalRead(BLidarZone2) < 1))) {
       cmd_state = 7; // A or a (left)
     }
     else cmd_state = 0;
   }
   else if (ps2x.Button(PSB_PAD_RIGHT) && ps2x.Button(PSB_R1)) { // Right pad (right)
     // if(rTof > 20) // if right sensor is not blocked (100 mm == 20 ADC)
-    if(digitalRead(FLidarZone2) < 1) {
+    if((!ps2x.Button(PSB_L1) && (digitalRead(FLidarZone2) < 1))) {
       cmd_state = 8;
     }
     else cmd_state = 0;
