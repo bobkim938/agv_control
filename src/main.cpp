@@ -464,12 +464,10 @@ void process_terminal(int incomingByte, int32_t target) { // This function to pr
     else cmd_state = 0;
   } 
   else if (incomingByte == 45) {
-    cmd_state = 5; // - (slower)
-    current_speed = SLOW;
+    set_speed(SLOW); // - (slower)
   }
   else if (incomingByte == 61) {
-    cmd_state = 6; // = (faster)
-    current_speed = FAST;
+    set_speed(FAST); // = (faster)
   }
   else if ((incomingByte == 65) || (incomingByte == 97)) { // A or a (left)
     // if(lTof > 521) // if left sensor is not blocked (100 mm == 521 ADC)
