@@ -80,8 +80,7 @@ int32_t lUsonicRead, rUsonicRead, lTofRead, rTofRead, CeilTofRead;
 int32_t lUsonic, rUsonic, Usonic, UsonicDiff, rTof, CeilTof;
 int32_t lTof, strideTarget, prev_ltof;
 int32_t lTofDiff;
-bool check_c = true;
-unsigned long prev_time, prevT_OnStart;
+
 MovingAverage <int, 8> lUsonicFilter;
 MovingAverage <int, 8> rUsonicFilter;
 MovingAverage <int, 4> lTofFilter;
@@ -517,10 +516,6 @@ void process_terminal(int incomingByte, int32_t target) { // This function to pr
   }
   else if(incomingByte == 'U' || incomingByte == 'u') { // U or u (print ceiling Tof)
     ceil_flag = true;
-  }
-  else if(incomingByte == 'I' || incomingByte == 'i') {
-    prevT_OnStart = millis();
-    onStart_speed = true;
   }
 }
 
