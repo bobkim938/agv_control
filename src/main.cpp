@@ -627,10 +627,10 @@ void controller_setup() {
     }
   }  
   else if(ps2_error == 1)
-    Serial.println("No controller found, check wiring, see readme.txt to enable debug. visit www.billporter.info for troubleshooting tips");
+    Serial.println("No controller found, check wiring, see readme.txt to enable debug");
    
   else if(ps2_error == 2)
-    Serial.println("Controller found but not accepting commands. see readme.txt to enable debug. Visit www.billporter.info for troubleshooting tips");
+    Serial.println("Controller found but not accepting commands");
 
   else if(ps2_error == 3)
     Serial.println("Controller refusing to enter Pressures mode, may not support it. ");
