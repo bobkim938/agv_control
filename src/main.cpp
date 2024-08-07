@@ -535,12 +535,7 @@ void process_controller() {     // Function to receive PS2 input
   else if (ps2x.Button(PSB_TRIANGLE) && ps2x.Button(PSB_R1)) {
     set_speed(FAST); // = (faster)
   }
-  else if(ps2x.Button(PSB_PAD_UP) && ps2x.Button(PSB_R1)) { // Up pad (forward)
-    // if(digitalRead(FLidarZone1) < 1) {  // if front sensor is not blocked
-    //   cmd_state = 1;
-    // }
-    // else cmd_state = 0;
-    // }
+  else if((ps2x.Button(PSB_PAD_UP) && ps2x.Button(PSB_R1)) && (!ps2x.Button(PSB_PAD_DOWN) || !ps2x.Button(PSB_SQUARE) || !ps2x.Button(PSB_CIRCLE) || !ps2x.Button(PSB_PAD_LEFT) || !ps2x.Button(PSB_PAD_RIGHT))) { // Up pad (forward)
     if((!ps2x.Button(PSB_L1) && ((current_speed == FAST && digitalRead(FLidarZone3) == 1) || digitalRead(FLidarZone1) == 1))) {
       cmd_state = 0;
     }
@@ -548,7 +543,7 @@ void process_controller() {     // Function to receive PS2 input
       cmd_state = 1;
     }
   }
-  else if (ps2x.Button(PSB_PAD_DOWN) && ps2x.Button(PSB_R1)) {// Down pad (backward)
+  else if ((ps2x.Button(PSB_PAD_DOWN) && ps2x.Button(PSB_R1)) && (!ps2x.Button(PSB_PAD_UP) || !ps2x.Button(PSB_SQUARE) || !ps2x.Button(PSB_CIRCLE) || !ps2x.Button(PSB_PAD_LEFT) || !ps2x.Button(PSB_PAD_RIGHT))) {// Down pad (backward)
     if((!ps2x.Button(PSB_L1) && ((current_speed == FAST && digitalRead(BLidarZone3) == 1) || digitalRead(BLidarZone1) == 1))) {
       cmd_state = 0;
     }
@@ -556,33 +551,33 @@ void process_controller() {     // Function to receive PS2 input
       cmd_state = 2;
     }
   }
-  else if (ps2x.Button(PSB_SQUARE)) { // L1 (ccw)
+  else if ((ps2x.Button(PSB_SQUARE) && ps2x.Button(PSB_R1)) && (!ps2x.Button(PSB_PAD_UP) || !ps2x.Button(PSB_PAD_DOWN) || !ps2x.Button(PSB_CIRCLE) || !ps2x.Button(PSB_PAD_LEFT) || !ps2x.Button(PSB_PAD_RIGHT))) { // L1 (ccw)
     // if(lTof > 3448 && rTof > 20 && lUsonic > 390 && rUsonic > 390) // L, RTOF > 650 mm , L, RUSONIC > 200 mm
     if(!ps2x.Button(PSB_L1) && (digitalRead(FLidarZone1) == 1 || digitalRead(FLidarZone2) == 1 || digitalRead(BLidarZone1) == 1 || digitalRead(BLidarZone2) == 1)) { 
       cmd_state = 0;
     }
     else cmd_state = 3;
   } 
-  else if (ps2x.Button(PSB_CIRCLE) && ps2x.Button(PSB_R1)) { // R1 (cw)
+  else if ((ps2x.Button(PSB_CIRCLE) && ps2x.Button(PSB_R1)) && (!ps2x.Button(PSB_PAD_UP) || !ps2x.Button(PSB_PAD_DOWN) || !ps2x.Button(PSB_SQUARE) || !ps2x.Button(PSB_PAD_LEFT) || !ps2x.Button(PSB_PAD_RIGHT))) { // R1 (cw)
     // if(lTof > 3448 && rTof > 20 && lUsonic > 390 && rUsonic > 390) // L, RTOF > 650 mm , L, RUSONIC > 200 mm
     if(!ps2x.Button(PSB_L1) && (digitalRead(FLidarZone1) == 1 || digitalRead(FLidarZone2) == 1 || digitalRead(BLidarZone1) == 1 || digitalRead(BLidarZone2) == 1)) {
       cmd_state = 0; 
     }
     else cmd_state = 4;
   } 
-  else if (ps2x.Button(PSB_PAD_LEFT) && ps2x.Button(PSB_R1)) { // Left pad (left)
+  else if ((ps2x.Button(PSB_PAD_LEFT) && ps2x.Button(PSB_R1)) && (!ps2x.Button(PSB_PAD_UP) || !ps2x.Button(PSB_PAD_DOWN) || !ps2x.Button(PSB_SQUARE) || !ps2x.Button(PSB_CIRCLE) || !ps2x.Button(PSB_PAD_RIGHT))) { // Left pad (left)
     // if(lTof > 521) // if left sensor is not blocked (100 mm == 521 ADC)
-    if((!ps2x.Button(PSB_L1) && (digitalRead(BLidarZone2) < 1))) {
-      cmd_state = 7; // A or a (left)
+    if((!ps2x.Button(PSB_L1) && (digitalRead(BLidarZone2) == 1))) {
+      cmd_state = 0; // A or a (left)
     }
-    else cmd_state = 0;
+    else cmd_state = 7;
   }
-  else if (ps2x.Button(PSB_PAD_RIGHT) && ps2x.Button(PSB_R1)) { // Right pad (right)
+  else if ((ps2x.Button(PSB_PAD_RIGHT) && ps2x.Button(PSB_R1)) && (!ps2x.Button(PSB_PAD_UP) || !ps2x.Button(PSB_PAD_DOWN) || !ps2x.Button(PSB_SQUARE) || !ps2x.Button(PSB_CIRCLE) || !ps2x.Button(PSB_PAD_LEFT))) { // Right pad (right)
     // if(rTof > 20) // if right sensor is not blocked (100 mm == 20 ADC)
-    if((!ps2x.Button(PSB_L1) && (digitalRead(FLidarZone2) < 1))) {
-      cmd_state = 8;
+    if((!ps2x.Button(PSB_L1) && (digitalRead(FLidarZone2) == 1))) {
+      cmd_state = 0;
     }
-    else cmd_state = 0;
+    else cmd_state = 8;
   }
 }
 
