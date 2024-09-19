@@ -66,7 +66,7 @@ const byte slow[11]   = {0x01, 0x06, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0
 const byte fast[11]   = {0x01, 0x06, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x96, 0x8B};
 const byte left[11]   = {0x01, 0x06, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x76, 0x8A};
 const byte right[11]  = {0x01, 0x06, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0xFE, 0x8A};
-const uint8_t magicLabAlign = 1; 
+const uint8_t magicLabAlign = 4; // 4 for Tof Alg 1 for Sonic Alg
 const uint8_t magicLabStride = 5; // equivalent to 1 mm
 const uint8_t magicLabAdjust = 2;
 
@@ -76,14 +76,13 @@ bool ceil_flag = false;
 uint8_t align_i, stride_i, adjust_i, speed_i, cmd_state = 0;
 uint8_t adjusting_cnt = 0;
 int32_t adjustTarget;
-int32_t lUsonicRead, rUsonicRead, lTofRead, rTofRead, CeilTofRead;
-int32_t lUsonic, rUsonic, Usonic, UsonicDiff, rTof, CeilTof;
-int32_t lTof, strideTarget, prev_ltof;
-int32_t lTofDiff;
+int32_t lUsonicRead, rUsonicRead, lUsonic, rUsonic, Usonic/*, UsonicDiff*/;
+int32_t lTofRead, rTofRead, CeilTofRead, rTof, CeilTof, lTof, strideTarget, prev_ltof, lTofDiff, lTofAlgRead, lTofAlg, AlgDiff;
 
-MovingAverage <int, 8> lUsonicFilter;
-MovingAverage <int, 8> rUsonicFilter;
+MovingAverage <int, 16> lUsonicFilter;
+MovingAverage <int, 16> rUsonicFilter;
 MovingAverage <int, 4> lTofFilter;
+MovingAverage <int, 16> lTofAlgFilter;
 MovingAverage <int, 4> rTofFilter;
 MovingAverage <int, 4> ceilTofFilter;
 
@@ -246,19 +245,20 @@ void send_485() { // This function to send out 485 com to the AGV. Don't touch t
 }
 
 void read_sensor() { // This function to read sensor data and average them
-  lUsonicRead = lUsonicFilter.add(analogRead(L_usonic)); lUsonic = lUsonicFilter.get();
-  rUsonicRead = rUsonicFilter.add(analogRead(R_usonic)); rUsonic = rUsonicFilter.get();
+  // lUsonicRead = lUsonicFilter.add(analogRead(L_usonic)); lUsonic = lUsonicFilter.get();
+  // rUsonicRead = rUsonicFilter.add(analogRead(R_usonic)); rUsonic = rUsonicFilter.get();
   lTofRead = lTofFilter.add(ADS.readADC(0)); lTof = lTofFilter.get();   
+  lTofAlgRead = lTofAlgFilter.add(ADS.readADC(1)); lTofAlg = lTofAlgFilter.get();
   CeilTofRead = ceilTofFilter.add(ADS.readADC(2)); CeilTof = ceilTofFilter.get();
   // Serial.println(ADS.readADC(0));
   // Serial.println(lTofRead);
   // Serial.println(lTof);
-  Usonic = (lUsonic + rUsonic) * 0.5;
+  // Usonic = (lUsonic + rUsonic) * 0.5;
   rTofRead = rTofFilter.add(analogRead(R_tof)); rTof = rTofFilter.get();
 }
 
 void align_control() {
-  UsonicDiff = lUsonic - rUsonic;
+  AlgDiff = lTof - lTofAlg;
   // if(UsonicDiff <= 32) {
     if (align_i< 2) { // only enter the align_control after the count is reached
       align_i++; 
@@ -267,11 +267,11 @@ void align_control() {
     else { 
       // if(digitalRead(FLidarZone1) < 1 && digitalRead(BLidarZone1) < 1 && digitalRead(FLidarZone2) < 1 && digitalRead(BLidarZone2) < 1) {
         align_i = 0; 
-        if (UsonicDiff > (magicLabAlign*1.0)) {
+        if (AlgDiff > (magicLabAlign*1.0)) {
           cmd_state = 4; // should rotate cw
           // Serial.println("CW");
         } 
-        else if (UsonicDiff < (magicLabAlign*-1.0)) {
+        else if (AlgDiff < (magicLabAlign*-1.0)) {
           cmd_state = 3; // should rotate ccw
           // Serial.println("CCW");
         }
@@ -291,7 +291,7 @@ void align_control() {
 void stride_control() {
   lTofDiff = strideTarget - lTof;
   if (lTofDiff > (magicLabStride*1.0)) { // should move right
-    if(digitalRead(FLidarZone2) < 1) {
+    // if(digitalRead(FLidarZone2) < 1) {
       if (rTof > 18) { // check right clearance (25 ADC value)
         if (lTofDiff < (magicLabStride*120*1.0) || rTof < 50) { //crawling speed
           if (strideSpeed_flag) strideSpeed(false);
@@ -312,13 +312,13 @@ void stride_control() {
       else { // right clearance is not enough. Stop
         cmd_state = 0; stride_flag = false;
       }
-    }
-    else { // something on the right side of the AGV
-      cmd_state = 0;
-    }
+    // }
+    // else { // something on the right side of the AGV
+    //   cmd_state = 0;
+    // }
   }
   else if (lTofDiff < (magicLabStride*-1.0)) { // should move left
-    if(digitalRead(BLidarZone2) < 1) {
+    // if(digitalRead(BLidarZone2) < 1) {
       if (lTof > 520) { // check left clearance
         if(lTofDiff > (magicLabStride*120*-1.0) || lTof < 1040) { //crawling speed
           if (strideSpeed_flag) strideSpeed(false);
@@ -339,10 +339,10 @@ void stride_control() {
       else { // left clearance is not enough. Stop
         cmd_state = 0; stride_flag = false;
       }
-    }
-    else { // something on the left side of the AGV
-      cmd_state = 0;
-    }
+    // }
+    // else { // something on the left side of the AGV
+    //   cmd_state = 0;
+    // }
   }
   else { //should not move
     cmd_state = 0; stride_flag = false;
