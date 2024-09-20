@@ -365,7 +365,7 @@ void adjust_control() {
   int UsonicDiff = abs(adjustTarget - Usonic);
     if (abs(Usonic - adjustTarget) > magicLabAdjust) {
       if (Usonic > adjustTarget) { // shall move forward
-        // if(digitalRead(FLidarZone1) < 1) {
+        if(digitalRead(FLidarZone1) < 1) {
           if(Usonic > 270) {
             if (UsonicDiff < 50) { // crawling speed
               if(adjusting_cnt == 0) {
@@ -386,14 +386,14 @@ void adjust_control() {
           else { //should not move
             cmd_state = 0; adjust_flag = false; adjusting_cnt = 0;
           } 
-        // }
-        // else { // something on the front side of the AGV
-        //   cmd_state = 0;
-        // }                                                                                          
+        }
+        else { // something on the front side of the AGV
+          cmd_state = 0;
+        }                                                                                          
       }
       
       else if (Usonic < adjustTarget) { // shall move backward
-        // if(digitalRead(BLidarZone1) < 1) {
+        if(digitalRead(BLidarZone1) < 1) {
           if(Usonic < 1022) {
             if(UsonicDiff < 50) { // crawling speed
               if(adjusting_cnt == 0) {
@@ -414,10 +414,10 @@ void adjust_control() {
           else { //should not move
             cmd_state = 0; adjust_flag = false; adjusting_cnt = 0;
           }
-        // }
-        // else { // something on the back side of the AGV
-        //   cmd_state = 0;
-        // }
+        }
+        else { // something on the back side of the AGV
+          cmd_state = 0;
+        }
       }
 
     }
