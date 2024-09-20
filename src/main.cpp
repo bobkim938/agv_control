@@ -72,11 +72,11 @@ const uint8_t magicLabAdjust = 2;
 
 bool align_flag, stride_flag, adjust_flag, printTOF_flag, printSONIC_flag, strideSpeed_flag, print_state_flag, false_alarm = false;
 bool onStart_speed = true; // reduce speed when starting
-bool ceil_flag = false;
+bool lTofAlg_flag = false;
 uint8_t align_i, stride_i, adjust_i, speed_i, cmd_state = 0;
 uint8_t adjusting_cnt = 0;
 int32_t adjustTarget;
-int32_t lUsonicRead, rUsonicRead, lUsonic, rUsonic, Usonic/*, UsonicDiff*/;
+int32_t lUsonicRead, rUsonicRead, lUsonic, rUsonic, Usonic, UsonicDiff;
 int32_t lTofRead, rTofRead, CeilTofRead, rTof, CeilTof, lTof, strideTarget, prev_ltof, lTofDiff, lTofAlgRead, lTofAlg, AlgDiff;
 
 MovingAverage <int, 16> lUsonicFilter;
@@ -167,11 +167,11 @@ void loop() { // put your main code here, to run repeatedly:
     Serial.print(lUsonic); Serial.print(' '); Serial.print(rUsonic); Serial.print(',');
     printSONIC_flag = false;
   }
-  if (ceil_flag) {
+  if (lTofAlg_flag) {
     Serial.print('u');
-    Serial.print(CeilTof);
+    Serial.print(lTofAlgRead);
     Serial.print(',');
-    ceil_flag = false;
+    lTofAlg_flag = false;
   }
   if (print_state_flag) {
     if(estopFlag || false_alarm) Serial.print("s"); // Emergency Stop state
@@ -258,7 +258,8 @@ void read_sensor() { // This function to read sensor data and average them
 }
 
 void align_control() {
-  AlgDiff = lTof - lTofAlg;
+  // AlgDiff = lTof - lTofAlg;
+  UsonicDiff = lUsonic - rUsonic;
   // if(UsonicDiff <= 32) {
     if (align_i< 2) { // only enter the align_control after the count is reached
       align_i++; 
@@ -267,11 +268,11 @@ void align_control() {
     else { 
       // if(digitalRead(FLidarZone1) < 1 && digitalRead(BLidarZone1) < 1 && digitalRead(FLidarZone2) < 1 && digitalRead(BLidarZone2) < 1) {
         align_i = 0; 
-        if (AlgDiff > (magicLabAlign*1.0)) {
+        if (UsonicDiff > (magicLabAlign*1.0)) {
           cmd_state = 4; // should rotate cw
           // Serial.println("CW");
         } 
-        else if (AlgDiff < (magicLabAlign*-1.0)) {
+        else if (UsonicDiff < (magicLabAlign*-1.0)) {
           cmd_state = 3; // should rotate ccw
           // Serial.println("CCW");
         }
@@ -515,7 +516,7 @@ void process_terminal(int incomingByte, int32_t target) { // This function to pr
     printSONIC_flag = true;
   }
   else if(incomingByte == 'U' || incomingByte == 'u') { // U or u (print ceiling Tof)
-    ceil_flag = true;
+    lTofAlg_flag = true;
   }
 }
 
