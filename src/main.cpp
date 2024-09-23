@@ -162,7 +162,7 @@ void loop() { // put your main code here, to run repeatedly:
   }
 
   if (printTOF_flag) {
-    Serial.print('p'); Serial.print(lTof); Serial.print(' '); Serial.print(rTof); Serial.print(',');
+    Serial.print('u'); Serial.print(lTof); Serial.print(' '); Serial.print(rTof); Serial.print(',');
     printTOF_flag = false; 
   }
   if (printSONIC_flag) {
@@ -170,7 +170,7 @@ void loop() { // put your main code here, to run repeatedly:
     printSONIC_flag = false;
   }
   if (printlTofSub_flag) {
-    Serial.print('u');
+    Serial.print('p');
     Serial.print(lTofSub);
     Serial.print(',');
     printlTofSub_flag = false;
@@ -507,8 +507,8 @@ void process_terminal(int incomingByte, int32_t target) { // This function to pr
     }
     else adjust_flag = false;
   }
-  else if ((incomingByte == 80) || (incomingByte == 112)) { // P or p (printTOF)
-    printTOF_flag = true; 
+  else if ((incomingByte == 80) || (incomingByte == 112)) { // P or p (print left FRONT TOF)
+    printlTofSub_flag = true;
   }
   else if(incomingByte == '[') { // [ (print current state)
     print_state_flag = true;
@@ -516,8 +516,8 @@ void process_terminal(int incomingByte, int32_t target) { // This function to pr
   else if(incomingByte == 'O' || incomingByte == 'o') { // O or o (print sonic)
     printSONIC_flag = true;
   }
-  else if(incomingByte == 'U' || incomingByte == 'u') { // U or u (print ceiling Tof)
-    printlTofSub_flag = true;
+  else if(incomingByte == 'U' || incomingByte == 'u') { // U or u (print left BACK and right TOF)
+    printTOF_flag = true; 
   }
 }
 
