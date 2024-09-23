@@ -129,10 +129,10 @@ void setup() { // put your setup code here, to run once:
 
 void loop() { // put your main code here, to run repeatedly:
   read_sensor();
-  if ((abs(prev_ltof - lTof) > 200) && stride_flag) {
+  if ((abs(prev_ltof - lTofSub) > 200) && stride_flag) {
     false_alarm = true;
   }
-  prev_ltof = lTof;
+  prev_ltof = lTofSub;
   if (estopFlag || false_alarm) {
     cmd_state = 0;
     align_flag = false;
@@ -162,7 +162,7 @@ void loop() { // put your main code here, to run repeatedly:
   }
 
   if (printTOF_flag) {
-    Serial.print('u'); Serial.print(lTof); Serial.print(' '); Serial.print(rTof); Serial.print(',');
+    Serial.print('u'); Serial.print(lTof); Serial.print(',');
     printTOF_flag = false; 
   }
   if (printSONIC_flag) {
@@ -170,9 +170,7 @@ void loop() { // put your main code here, to run repeatedly:
     printSONIC_flag = false;
   }
   if (printlTofSub_flag) {
-    Serial.print('p');
-    Serial.print(lTofSub);
-    Serial.print(',');
+    Serial.print('p'); Serial.print(lTofSub); Serial.print(' '); Serial.print(rTof); Serial.print(',');
     printlTofSub_flag = false;
   }
   if (print_state_flag) {
@@ -188,8 +186,8 @@ void loop() { // put your main code here, to run repeatedly:
     int incomingByte = Serial.read();
     if (incomingByte == 'C' || incomingByte == 'c' || incomingByte == 'N' || incomingByte == 'n') {
       int32_t target = Serial.parseInt();
-      if(target - lTof - 129 >= (int32_t)(rTof * 26559.0/1019.0)) { // width of the AGV: 670 mm
-        target = lTof + (int32_t)((rTof - 18) * 26559.0/1019.0);
+      if(target - lTofSub - 129 >= (int32_t)(rTof * 26559.0/1019.0)) { // width of the AGV: 670 mm
+        target = lTofSub + (int32_t)((rTof - 18) * 26559.0/1019.0);
       }
       process_terminal(incomingByte, target);
     }
@@ -291,7 +289,7 @@ void align_control() {
 }
 
 void stride_control() {
-  lTofDiff = strideTarget - lTofSubRead;
+  lTofDiff = strideTarget - lTofSub;
   if (lTofDiff > (magicLabStride*1.0)) { // should move right
     // if(digitalRead(FLidarZone2) < 1) {
       if (rTof > 18) { // check right clearance (25 ADC value)
@@ -321,8 +319,8 @@ void stride_control() {
   }
   else if (lTofDiff < (magicLabStride*-1.0)) { // should move left
     // if(digitalRead(BLidarZone2) < 1) {
-      if (lTof > 520) { // check left clearance
-        if(lTofDiff > (magicLabStride*120*-1.0) || lTof < 1040) { //crawling speed
+      if (lTofSub > 520) { // check left clearance
+        if(lTofDiff > (magicLabStride*120*-1.0) || lTofSub < 1040) { //crawling speed
           if (strideSpeed_flag) strideSpeed(false);
           else {
             if (stride_i<1) { stride_i++; cmd_state = 0; }
