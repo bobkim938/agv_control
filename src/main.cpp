@@ -250,7 +250,7 @@ void read_sensor() { // This function to read sensor data and average them
   lUsonicRead = lUsonicFilter.add(analogRead(L_usonic)); lUsonic = lUsonicFilter.get();
   rUsonicRead = rUsonicFilter.add(analogRead(R_usonic)); rUsonic = rUsonicFilter.get();
   lTofRead = lTofFilter.add(ADS.readADC(0)); lTof = lTofFilter.get();  
-  lTofSubRead = lTofSubFilter.add(ADS.readADC(2)); lTofSub = lTofSubFilter.get(); 
+  lTofSubRead = lTofSubFilter.add(ADS.readADC(2)); lTofSub = lTofSubFilter.get(); // front LTOF
   // CeilTofRead = ceilTofFilter.add(ADS.readADC(2)); CeilTof = ceilTofFilter.get();
   // Serial.println(ADS.readADC(0));
   // Serial.println(lTofRead);
@@ -291,7 +291,7 @@ void align_control() {
 }
 
 void stride_control() {
-  lTofDiff = strideTarget - lTof;
+  lTofDiff = strideTarget - lTofSubRead;
   if (lTofDiff > (magicLabStride*1.0)) { // should move right
     // if(digitalRead(FLidarZone2) < 1) {
       if (rTof > 18) { // check right clearance (25 ADC value)
