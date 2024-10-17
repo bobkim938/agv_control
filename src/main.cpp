@@ -291,7 +291,7 @@ void align_control() {
 void stride_control() { // stride control based on FRONT LTOF (lTofSub)
   lTofDiff = strideTarget - lTofSub;
   if (lTofDiff > (magicLabStride*1.0)) { // should move right
-    // if(digitalRead(FLidarZone2) < 1) {
+    if(digitalRead(FLidarZone2) < 1) {
       if (rTof > 18) { // check right clearance (25 ADC value)
         if (lTofDiff < (magicLabStride*120*1.0) || rTof < 50) { //crawling speed
           if (strideSpeed_flag) strideSpeed(false);
@@ -312,13 +312,13 @@ void stride_control() { // stride control based on FRONT LTOF (lTofSub)
       else { // right clearance is not enough. Stop
         cmd_state = 0; stride_flag = false;
       }
-    // }
-    // else { // something on the right side of the AGV
-    //   cmd_state = 0;
-    // }
+    }
+    else { // something on the right side of the AGV
+      cmd_state = 0;
+    }
   }
   else if (lTofDiff < (magicLabStride*-1.0)) { // should move left
-    // if(digitalRead(BLidarZone2) < 1) {
+    if(digitalRead(BLidarZone2) < 1) {
       if (lTofSub > 520) { // check left clearance
         if(lTofDiff > (magicLabStride*120*-1.0) || lTofSub < 1040) { //crawling speed
           if (strideSpeed_flag) strideSpeed(false);
@@ -339,10 +339,10 @@ void stride_control() { // stride control based on FRONT LTOF (lTofSub)
       else { // left clearance is not enough. Stop
         cmd_state = 0; stride_flag = false;
       }
-    // }
-    // else { // something on the left side of the AGV
-    //   cmd_state = 0;
-    // }
+    }
+    else { // something on the left side of the AGV
+      cmd_state = 0;
+    }
   }
   else { //should not move
     cmd_state = 0; stride_flag = false;
@@ -364,7 +364,7 @@ void adjust_control() {
   int UsonicDiff = abs(adjustTarget - Usonic);
     if (abs(Usonic - adjustTarget) > magicLabAdjust) {
       if (Usonic > adjustTarget) { // shall move forward
-        // if(digitalRead(FLidarZone1) < 1) {
+        if(digitalRead(FLidarZone1) < 1) {
           if(Usonic > 270) {
             if (UsonicDiff < 50) { // crawling speed
               if(adjusting_cnt == 0) {
@@ -385,14 +385,14 @@ void adjust_control() {
           else { //should not move
             cmd_state = 0; adjust_flag = false; adjusting_cnt = 0;
           } 
-        // }
-        // else { // something on the front side of the AGV
-        //   cmd_state = 0;
-        // }                                                                                          
+        }
+        else { // something on the front side of the AGV
+          cmd_state = 0;
+        }                                                                                          
       }
       
       else if (Usonic < adjustTarget) { // shall move backward
-        // if(digitalRead(BLidarZone1) < 1) {
+        if(digitalRead(BLidarZone1) < 1) {
           if(Usonic < 1022) {
             if(UsonicDiff < 50) { // crawling speed
               if(adjusting_cnt == 0) {
@@ -413,10 +413,10 @@ void adjust_control() {
           else { //should not move
             cmd_state = 0; adjust_flag = false; adjusting_cnt = 0;
           }
-        // }
-        // else { // something on the back side of the AGV
-        //   cmd_state = 0;
-        // }
+        }
+        else { // something on the back side of the AGV
+          cmd_state = 0;
+        }
       }
 
     }
@@ -437,30 +437,30 @@ void process_terminal(int incomingByte, int32_t target) { // This function to pr
   }
   else if ((incomingByte == 87) || (incomingByte == 119)) { // W or w (forward)
     // if(lUsonic > 180 && rUsonic > 180)  // if both sensors are not blocked (100 mm == 180 ADC)
-    // if(digitalRead(FLidarZone1) < 1) {  // if front sensor is not blocked
+    if(digitalRead(FLidarZone1) < 1) {  // if front sensor is not blocked
       cmd_state = 1;
-    // }
-    // else cmd_state = 0;
+    }
+    else cmd_state = 0;
     } 
   else if ((incomingByte == 83) || (incomingByte == 115)) { // S or s (backward)
-    // if(digitalRead(BLidarZone1) < 1) {  // if front sensor is not blocked
+    if(digitalRead(BLidarZone1) < 1) {  // if front sensor is not blocked
       cmd_state = 2;
-    // }
-    // else cmd_state = 0;
+    }
+    else cmd_state = 0;
   } 
   else if ((incomingByte == 81) || (incomingByte == 113)) { // Q or q (ccw)
     // if(lTof > 3448 && rTof > 20 && lUsonic > 390 && rUsonic > 390) // L, RTOF > 650 mm , L, RUSONIC > 200 mm
-    // if(digitalRead(FLidarZone1) < 1 && digitalRead(FLidarZone2) < 1 && digitalRead(BLidarZone1) < 1 && digitalRead(BLidarZone2) < 1) { 
+    if(digitalRead(FLidarZone1) < 1 && digitalRead(FLidarZone2) < 1 && digitalRead(BLidarZone1) < 1 && digitalRead(BLidarZone2) < 1) { 
       cmd_state = 3;
-    // }
-    // else cmd_state = 0;
+    }
+    else cmd_state = 0;
   } 
   else if ((incomingByte == 69) || (incomingByte == 101)) { // E or e (cw)
     // if(lTof > 3448 && rTof > 20 && lUsonic > 390 && rUsonic > 390) // L, RTOF > 650 mm , L, RUSONIC > 200 mm
-    // if(digitalRead(FLidarZone1) < 1 && digitalRead(FLidarZone2) < 1 && digitalRead(BLidarZone1) < 1 && digitalRead(BLidarZone2) < 1) {
+    if(digitalRead(FLidarZone1) < 1 && digitalRead(FLidarZone2) < 1 && digitalRead(BLidarZone1) < 1 && digitalRead(BLidarZone2) < 1) {
       cmd_state = 4; 
-    // }
-    // else cmd_state = 0;
+    }
+    else cmd_state = 0;
   } 
   else if (incomingByte == 45) {
     set_speed(SLOW); // - (slower)
@@ -470,17 +470,17 @@ void process_terminal(int incomingByte, int32_t target) { // This function to pr
   }
   else if ((incomingByte == 65) || (incomingByte == 97)) { // A or a (left)
     // if(lTof > 521) // if left sensor is not blocked (100 mm == 521 ADC)
-    // if(digitalRead(BLidarZone2) < 1) {
+    if(digitalRead(BLidarZone2) < 1) {
       cmd_state = 7; // A or a (left)
-    // }
-    // else cmd_state = 0;
+    }
+    else cmd_state = 0;
   }
   else if ((incomingByte == 68) || (incomingByte == 100)) { // D or d (right)
     // if(rTof > 20) // if right sensor is not blocked (100 mm == 20 ADC)
-    // if(digitalRead(FLidarZone2) < 1) {
+    if(digitalRead(FLidarZone2) < 1) {
       cmd_state = 8;
-    // }
-    // else cmd_state = 0;
+    }
+    else cmd_state = 0;
   }
   else if ((incomingByte == 77) || (incomingByte == 109)) { // M or m (align)
     align_flag = true; 
