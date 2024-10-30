@@ -73,10 +73,11 @@ const uint8_t magicLabAdjust = 2;
 bool align_flag, stride_flag, adjust_flag, printTOF_flag, printSONIC_flag, strideSpeed_flag, print_state_flag, false_alarm = false;
 bool onStart_speed = true; // reduce speed when starting
 bool printlTofSub_flag = false;
+bool printCeilTof_flag = false;
 uint8_t align_i, stride_i, adjust_i, speed_i, cmd_state = 0;
 uint8_t adjusting_cnt = 0;
 int32_t adjustTarget;
-int32_t lUsonicRead, rUsonicRead, lTofRead, rTofRead;
+int32_t lUsonicRead, rUsonicRead, lTofRead, rTofRead, CeilTofRead, CeilTof;
 int32_t lUsonic, rUsonic, Usonic, UsonicDiff, rTof;
 int32_t lTof, strideTarget, prev_ltof;
 int32_t lTofSubRead, lTofSub;
@@ -87,6 +88,7 @@ MovingAverage <int, 16> rUsonicFilter;
 MovingAverage <int, 4> lTofFilter;
 MovingAverage <int, 4> rTofFilter;
 MovingAverage <int, 4> lTofSubFilter;
+MovingAverage <int, 4> CeilTofFilter;
 
 void estop() { // interrupt for estop pressed, check for debounce
   delayMicroseconds(5);
@@ -173,6 +175,10 @@ void loop() { // put your main code here, to run repeatedly:
     Serial.print('p'); Serial.print(lTofSub); Serial.print(' '); Serial.print(rTof); Serial.print(',');
     printlTofSub_flag = false;
   }
+  if (printCeilTof_flag) {
+    Serial.print('y'); Serial.print(CeilTof); Serial.print(',');
+    printCeilTof_flag = false;
+  }
   if (print_state_flag) {
     if(estopFlag || false_alarm) Serial.print("s"); // Emergency Stop state
     else if(!align_flag && !stride_flag && !adjust_flag && !estopFlag && !false_alarm && !onStart_speed) Serial.print("okla"); // Normal state
@@ -249,7 +255,7 @@ void read_sensor() { // This function to read sensor data and average them
   rUsonicRead = rUsonicFilter.add(analogRead(R_usonic)); rUsonic = rUsonicFilter.get();
   lTofRead = lTofFilter.add(ADS.readADC(0)); lTof = lTofFilter.get();  
   lTofSubRead = lTofSubFilter.add(ADS.readADC(2)); lTofSub = lTofSubFilter.get(); // front LTOF
-  // CeilTofRead = ceilTofFilter.add(ADS.readADC(2)); CeilTof = ceilTofFilter.get();
+  CeilTofRead = CeilTofFilter.add(ADS.readADC(3)); CeilTof = CeilTofFilter.get();
   // Serial.println(ADS.readADC(0));
   // Serial.println(lTofRead);
   // Serial.println(lTof);
@@ -365,7 +371,7 @@ void adjust_control() {
     if (abs(Usonic - adjustTarget) > magicLabAdjust) {
       if (Usonic > adjustTarget) { // shall move forward
         // if(digitalRead(FLidarZone1) < 1) {
-          if(Usonic > 270) {
+          if(lUsonic > 270 && rUsonic > 270) { // only move when both of them is higher than 270 ADC (avoid vision head crashing)
             if (UsonicDiff < 50) { // crawling speed
               if(adjusting_cnt == 0) {
                 if (adjust_i<2) { adjust_i++; cmd_state = 0;}
@@ -516,6 +522,9 @@ void process_terminal(int incomingByte, int32_t target) { // This function to pr
   }
   else if(incomingByte == 'U' || incomingByte == 'u') { // U or u (print left BACK and right TOF)
     printTOF_flag = true; 
+  }
+  else if(incomingByte == 'Y' || incomingByte == 'y') { // Y or y (print ceiling Tof)
+    printCeilTof_flag = true;
   }
 }
 
