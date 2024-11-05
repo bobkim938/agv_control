@@ -151,8 +151,7 @@ void loop() { // put your main code here, to run repeatedly:
   if (align_flag) align_control(); 
   else if (stride_flag) stride_control();
   else if (adjust_flag) {
-    if (current_speed == FAST) set_speed(SLOW);
-    else adjust_control();
+    adjust_control();
   }
   else {
     // dualshock controller
@@ -591,13 +590,13 @@ void process_controller() {     // Function to receive PS2 input
 void set_speed(SPEED speed) {
   unsigned long first_trigger = millis();
   if (speed == FAST) {
-    while (millis() - first_trigger < 2500) {
+    while (millis() - first_trigger < 3500) {
       cmd_state = 6;
     }
     current_speed = FAST;
     strideSpeed_flag = true;
   } else {
-    while (millis() - first_trigger < 2500) {
+    while (millis() - first_trigger < 3500) {
       cmd_state = 5;
     }
     current_speed = SLOW;
