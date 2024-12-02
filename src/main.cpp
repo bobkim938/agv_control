@@ -72,22 +72,22 @@ const uint8_t magicLabAdjust = 2;
 
 bool align_flag, stride_flag, adjust_flag, printTOF_flag, printSONIC_flag, strideSpeed_flag, print_state_flag, false_alarm = false;
 bool onStart_speed = true; // reduce speed when starting
-bool printlTofSub_flag = false;
+bool printlTof_front_flag = false;
 bool printCeilTof_flag = false;
 uint8_t align_i, stride_i, adjust_i, speed_i, cmd_state = 0;
 uint8_t adjusting_cnt = 0;
-int32_t adjustTarget;
-int32_t lUsonicRead, rUsonicRead, lTofRead, rTofRead, CeilTofRead, CeilTof;
-int32_t lUsonic, rUsonic, Usonic, UsonicDiff, rTof;
-int32_t lTof, strideTarget, prev_ltof;
-int32_t lTofSubRead, lTofSub;
-int32_t lTofDiff;
+float adjustTarget;
+float lUsonicRead, rUsonicRead, lTOF_back_Read, rTofRead, CeilTofRead, CeilTof;
+float lUsonic, rUsonic, Usonic, UsonicDiff, rTof;
+float lTof_back, strideTarget, prev_ltof;
+float lTof_front_Read, lTof_front;
+float lTofDiff;
 
 MovingAverage <float, 128> lUsonicFilter;
 MovingAverage <float, 128> rUsonicFilter;
-MovingAverage <float, 4> lTofFilter;
+MovingAverage <float, 4> lTof_back_Filter;
 MovingAverage <float, 4> rTofFilter;
-MovingAverage <float, 4> lTofSubFilter;
+MovingAverage <float, 4> lTof_front_Filter;
 MovingAverage <float, 4> CeilTofFilter;
 
 void estop() { // interrupt for estop pressed, check for debounce
@@ -131,10 +131,10 @@ void setup() { // put your setup code here, to run once:
 
 void loop() { // put your main code here, to run repeatedly:
   read_sensor();
-  if ((abs(prev_ltof - lTofSub) > 200) && stride_flag) {
+  if ((abs(prev_ltof - lTof_front) > 200) && stride_flag) {
     false_alarm = true;
   }
-  prev_ltof = lTofSub;
+  prev_ltof = lTof_front;
   if (estopFlag || false_alarm) {
     cmd_state = 0;
     align_flag = false;
@@ -164,16 +164,16 @@ void loop() { // put your main code here, to run repeatedly:
   }
 
   if (printTOF_flag) {
-    Serial.print('u'); Serial.print(lTof); Serial.print(',');
+    Serial.print('u'); Serial.print(lTof_back); Serial.print(',');
     printTOF_flag = false; 
   }
   if (printSONIC_flag) {
     Serial.print('o'); Serial.print(lUsonic); Serial.print(' '); Serial.print(rUsonic); Serial.print(',');
     printSONIC_flag = false;
   }
-  if (printlTofSub_flag) {
-    Serial.print('p'); Serial.print(lTofSub); Serial.print(' '); Serial.print(rTof); Serial.print(',');
-    printlTofSub_flag = false;
+  if (printlTof_front_flag) {
+    Serial.print('p'); Serial.print(lTof_front); Serial.print(' '); Serial.print(rTof); Serial.print(',');
+    printlTof_front_flag = false;
   }
   if (printCeilTof_flag) {
     Serial.print('y'); Serial.print(CeilTof); Serial.print(',');
@@ -192,8 +192,8 @@ void loop() { // put your main code here, to run repeatedly:
     int incomingByte = Serial.read();
     if (incomingByte == 'C' || incomingByte == 'c' || incomingByte == 'N' || incomingByte == 'n') {
       int32_t target = Serial.parseInt();
-      if(target - lTofSub - 129 >= (int32_t)(rTof * 26559.0/1019.0)) { // width of the AGV: 670 mm
-        target = lTofSub + (int32_t)((rTof - 18) * 26559.0/1019.0);
+      if(target - lTof_front - 129 >= (int32_t)(rTof * 26559.0/1019.0)) { // width of the AGV: 670 mm
+        target = lTof_front + (int32_t)((rTof - 18) * 26559.0/1019.0);
       }
       process_terminal(incomingByte, target);
     }
@@ -253,12 +253,12 @@ void send_485() { // This function to send out 485 com to the AGV. Don't touch t
 void read_sensor() { // This function to read sensor data and average them
   lUsonicRead = lUsonicFilter.add(analogRead(L_usonic)); lUsonic = lUsonicFilter.get();
   rUsonicRead = rUsonicFilter.add(analogRead(R_usonic)); rUsonic = rUsonicFilter.get();
-  lTofRead = lTofFilter.add(ADS.readADC(0)); lTof = lTofFilter.get();  
-  lTofSubRead = lTofSubFilter.add(ADS.readADC(2)); lTofSub = lTofSubFilter.get(); // front LTOF
+  lTOF_back_Read = lTof_back_Filter.add(ADS.readADC(0)); lTof_back = lTof_back_Filter.get(); // back LTOF
+  lTof_front_Read = lTof_front_Filter.add(ADS.readADC(2)); lTof_front = lTof_front_Filter.get(); // front LTOF
   CeilTofRead = CeilTofFilter.add(ADS.readADC(1)); CeilTof = CeilTofFilter.get();
   // Serial.println(ADS.readADC(0));
   // Serial.println(lTofRead);
-  // Serial.println(lTof);
+  // Serial.println(lTof_back);
   Usonic = (lUsonic + rUsonic) * 0.5;
   rTofRead = rTofFilter.add(analogRead(R_tof)); rTof = rTofFilter.get();
 }
@@ -294,8 +294,8 @@ void align_control() {
   // }
 }
 
-void stride_control() { // stride control based on FRONT LTOF (lTofSub)
-  lTofDiff = strideTarget - lTofSub;
+void stride_control() { // stride control based on FRONT LTOF (lTof_front)
+  lTofDiff = strideTarget - lTof_front;
   if (lTofDiff > (magicLabStride*1.0)) { // should move right
     if(digitalRead(FLidarZone2) < 1) {
       if (rTof > 18) { // check right clearance (25 ADC value)
@@ -325,8 +325,8 @@ void stride_control() { // stride control based on FRONT LTOF (lTofSub)
   }
   else if (lTofDiff < (magicLabStride*-1.0)) { // should move left
     // if(digitalRead(BLidarZone2) < 1) {
-      if (lTofSub > 520) { // check left clearance
-        if(lTofDiff > (magicLabStride*120*-1.0) || lTofSub < 1040) { //crawling speed
+      if (lTof_front > 520) { // check left clearance
+        if(lTofDiff > (magicLabStride*120*-1.0) || lTof_front < 1040) { //crawling speed
           if (strideSpeed_flag) strideSpeed(false);
           else {
             if (stride_i<1) { stride_i++; cmd_state = 0; }
@@ -367,7 +367,7 @@ void strideSpeed(bool speed) {
 }
 
 void adjust_control() {
-  int UsonicDiff = abs(adjustTarget - Usonic);
+  float UsonicDiff = abs(adjustTarget - Usonic);
     if (abs(Usonic - adjustTarget) > magicLabAdjust) {
       if (Usonic > adjustTarget) { // shall move forward
         // if(digitalRead(FLidarZone1) < 1) {
@@ -455,14 +455,14 @@ void process_terminal(int incomingByte, int32_t target) { // This function to pr
     else cmd_state = 0;
   } 
   else if ((incomingByte == 81) || (incomingByte == 113)) { // Q or q (ccw)
-    // if(lTof > 3448 && rTof > 20 && lUsonic > 390 && rUsonic > 390) // L, RTOF > 650 mm , L, RUSONIC > 200 mm
+    // if(lTof_back > 3448 && rTof > 20 && lUsonic > 390 && rUsonic > 390) // L, RTOF > 650 mm , L, RUSONIC > 200 mm
     // if(digitalRead(FLidarZone2) < 1 && digitalRead(BLidarZone2) < 1) { 
       cmd_state = 3;
     // }
     // else cmd_state = 0;
   } 
   else if ((incomingByte == 69) || (incomingByte == 101)) { // E or e (cw)
-    // if(lTof > 3448 && rTof > 20 && lUsonic > 390 && rUsonic > 390) // L, RTOF > 650 mm , L, RUSONIC > 200 mm
+    // if(lTof_back > 3448 && rTof > 20 && lUsonic > 390 && rUsonic > 390) // L, RTOF > 650 mm , L, RUSONIC > 200 mm
     // if(digitalRead(FLidarZone2) < 1 && digitalRead(BLidarZone2) < 1) {
       cmd_state = 4; 
     // }
@@ -475,7 +475,7 @@ void process_terminal(int incomingByte, int32_t target) { // This function to pr
     set_speed(FAST); // = (faster)
   }
   else if ((incomingByte == 65) || (incomingByte == 97)) { // A or a (left)
-    // if(lTof > 521) // if left sensor is not blocked (100 mm == 521 ADC)
+    // if(lTof_back > 521) // if left sensor is not blocked (100 mm == 521 ADC)
     // if(digitalRead(BLidarZone2) < 1) {
       cmd_state = 7; // A or a (left)
     // }
@@ -492,7 +492,7 @@ void process_terminal(int incomingByte, int32_t target) { // This function to pr
     align_flag = true; 
   }
   else if ((incomingByte == 67) || (incomingByte == 99)) { // C or c (stride)
-    if(target <= 24037 && target >= 533) { // receiving range of 100 - 4500 mm only (distance = 0.1872*ADC + 0.2184) for lTofSub
+    if(target <= 24037 && target >= 533) { // receiving range of 100 - 4500 mm only (distance = 0.1872*ADC + 0.2184) for lTof_front
       strideTarget = target;
       stride_flag = true;
       Serial.print('c');
@@ -512,7 +512,7 @@ void process_terminal(int incomingByte, int32_t target) { // This function to pr
     else adjust_flag = false;
   }
   else if ((incomingByte == 80) || (incomingByte == 112)) { // P or p (print left FRONT TOF)
-    printlTofSub_flag = true;
+    printlTof_front_flag = true;
   }
   else if(incomingByte == '[') { // [ (print current state)
     print_state_flag = true;
@@ -573,7 +573,7 @@ void process_controller() {     // Function to receive PS2 input
     /*else*/ cmd_state = 4;
   } 
   else if ((ps2x.Button(PSB_PAD_LEFT) && ps2x.Button(PSB_R1)) && (!ps2x.Button(PSB_PAD_UP) || !ps2x.Button(PSB_PAD_DOWN) || !ps2x.Button(PSB_SQUARE) || !ps2x.Button(PSB_CIRCLE) || !ps2x.Button(PSB_PAD_RIGHT))) { // Left pad (left)
-    // if(lTof > 521) // if left sensor is not blocked (100 mm == 521 ADC)
+    // if(lTof_back > 521) // if left sensor is not blocked (100 mm == 521 ADC)
     // if((!ps2x.Button(PSB_L1) && (digitalRead(BLidarZone2) == 1))) {
     //   cmd_state = 0; // A or a (left)
     // }
