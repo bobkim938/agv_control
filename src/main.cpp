@@ -83,12 +83,12 @@ int32_t lTof, strideTarget, prev_ltof;
 int32_t lTofSubRead, lTofSub;
 int32_t lTofDiff;
 
-MovingAverage <int, 16> lUsonicFilter;
-MovingAverage <int, 16> rUsonicFilter;
-MovingAverage <int, 4> lTofFilter;
-MovingAverage <int, 4> rTofFilter;
-MovingAverage <int, 4> lTofSubFilter;
-MovingAverage <int, 4> CeilTofFilter;
+MovingAverage <float, 128> lUsonicFilter;
+MovingAverage <float, 128> rUsonicFilter;
+MovingAverage <float, 4> lTofFilter;
+MovingAverage <float, 4> rTofFilter;
+MovingAverage <float, 4> lTofSubFilter;
+MovingAverage <float, 4> CeilTofFilter;
 
 void estop() { // interrupt for estop pressed, check for debounce
   delayMicroseconds(5);
@@ -151,6 +151,7 @@ void loop() { // put your main code here, to run repeatedly:
   if (align_flag) align_control(); 
   else if (stride_flag) stride_control();
   else if (adjust_flag) {
+    // set_speed(SLOW);
     adjust_control();
   }
   else {
@@ -167,7 +168,7 @@ void loop() { // put your main code here, to run repeatedly:
     printTOF_flag = false; 
   }
   if (printSONIC_flag) {
-    Serial.print(lUsonic); Serial.print(' '); Serial.print(rUsonic); Serial.print(',');
+    Serial.print('o'); Serial.print(lUsonic); Serial.print(' '); Serial.print(rUsonic); Serial.print(',');
     printSONIC_flag = false;
   }
   if (printlTofSub_flag) {
@@ -254,7 +255,7 @@ void read_sensor() { // This function to read sensor data and average them
   rUsonicRead = rUsonicFilter.add(analogRead(R_usonic)); rUsonic = rUsonicFilter.get();
   lTofRead = lTofFilter.add(ADS.readADC(0)); lTof = lTofFilter.get();  
   lTofSubRead = lTofSubFilter.add(ADS.readADC(2)); lTofSub = lTofSubFilter.get(); // front LTOF
-  CeilTofRead = CeilTofFilter.add(ADS.readADC(3)); CeilTof = CeilTofFilter.get();
+  CeilTofRead = CeilTofFilter.add(ADS.readADC(1)); CeilTof = CeilTofFilter.get();
   // Serial.println(ADS.readADC(0));
   // Serial.println(lTofRead);
   // Serial.println(lTof);
@@ -590,13 +591,13 @@ void process_controller() {     // Function to receive PS2 input
 void set_speed(SPEED speed) {
   unsigned long first_trigger = millis();
   if (speed == FAST) {
-    while (millis() - first_trigger < 3500) {
+    while (millis() - first_trigger < 2700) {
       cmd_state = 6;
     }
     current_speed = FAST;
     strideSpeed_flag = true;
   } else {
-    while (millis() - first_trigger < 3500) {
+    while (millis() - first_trigger < 3000) {  // longer, so tend to slower
       cmd_state = 5;
     }
     current_speed = SLOW;
