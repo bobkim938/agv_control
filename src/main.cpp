@@ -1,7 +1,6 @@
 #include <Arduino.h>
 #include <TimerOne.h>
 #include <RS485.h>
-#include <MovingAverage.h>
 #include <ADS1X15.h>
 #include <PS2X_lib.h>  //for v1.6
 
@@ -24,6 +23,42 @@ enum SPEED {SLOW, FAST};
 #define BLidarZone1 34 // back zone
 #define BLidarZone2 38 // left zone
 #define BLidarZone3 42 // back zone for SLOW DOWN
+
+class moving_average {
+public:
+    moving_average(int size) : max_size(size), current_size(0), index(0), sum(0.0) {
+        buffer = new float[max_size];
+    }
+    ~moving_average() {
+        delete[] buffer;
+    }
+    
+    void add(float value) { // add new value
+        if (current_size < max_size) {
+            current_size++;
+        } else { // if the buffer is full, subtract the value being overwritten
+            sum -= buffer[index];
+        }
+        buffer[index] = value; // remove oldest value
+        sum += value;
+        index = (index + 1) % max_size; 
+    }
+
+    float get_average() const { // get moving averaged value
+        if (current_size == 0) {
+            return 0.0; // if no elements, return 0
+        }
+        return sum / current_size;
+    }
+
+private:
+  float* buffer; // array to consisting of samples (buffer)
+  int max_size; // max size of the buffer
+  int current_size; // current number of samples in the buffer
+  int index; // current index for circular overwrite
+  float sum;         
+};
+
 
 // Emergency Stop Interrupt
 const uint8_t interruptPin = 3;
@@ -77,18 +112,19 @@ bool printCeilTof_flag = false;
 uint8_t align_i, stride_i, adjust_i, speed_i, cmd_state = 0;
 uint8_t adjusting_cnt = 0;
 float adjustTarget;
-float lUsonicRead, rUsonicRead, lTOF_back_Read, rTofRead, CeilTofRead, CeilTof;
+float CeilTof;
 float lUsonic, rUsonic, Usonic, UsonicDiff, rTof;
 float lTof_back, strideTarget, prev_ltof;
-float lTof_front_Read, lTof_front;
+float lTof_front;
 float lTofDiff;
 
-MovingAverage <float, 128> lUsonicFilter;
-MovingAverage <float, 128> rUsonicFilter;
-MovingAverage <float, 4> lTof_back_Filter;
-MovingAverage <float, 4> rTofFilter;
-MovingAverage <float, 4> lTof_front_Filter;
-MovingAverage <float, 4> CeilTofFilter;
+moving_average lUsonicFilter(128);
+moving_average rUsonicFilter(128);
+moving_average lTof_back_Filter(4);
+moving_average rTofFilter(4);
+moving_average lTof_front_Filter(4);
+moving_average CeilTofFilter(4);
+
 
 void estop() { // interrupt for estop pressed, check for debounce
   delayMicroseconds(5);
@@ -251,16 +287,13 @@ void send_485() { // This function to send out 485 com to the AGV. Don't touch t
 }
 
 void read_sensor() { // This function to read sensor data and average them
-  lUsonicRead = lUsonicFilter.add(analogRead(L_usonic)); lUsonic = lUsonicFilter.get();
-  rUsonicRead = rUsonicFilter.add(analogRead(R_usonic)); rUsonic = rUsonicFilter.get();
-  lTOF_back_Read = lTof_back_Filter.add(ADS.readADC(0)); lTof_back = lTof_back_Filter.get(); // back LTOF
-  lTof_front_Read = lTof_front_Filter.add(ADS.readADC(2)); lTof_front = lTof_front_Filter.get(); // front LTOF
-  CeilTofRead = CeilTofFilter.add(ADS.readADC(1)); CeilTof = CeilTofFilter.get();
-  // Serial.println(ADS.readADC(0));
-  // Serial.println(lTofRead);
-  // Serial.println(lTof_back);
+  lUsonicFilter.add(analogRead(L_usonic)); lUsonic = lUsonicFilter.get_average();
+  rUsonicFilter.add(analogRead(R_usonic)); rUsonic = rUsonicFilter.get_average();
+  lTof_back_Filter.add(ADS.readADC(0)); lTof_back = lTof_back_Filter.get_average(); // back LTOF
+  lTof_front_Filter.add(ADS.readADC(2)); lTof_front = lTof_front_Filter.get_average(); // front LTOF
+  CeilTofFilter.add(ADS.readADC(1)); CeilTof = CeilTofFilter.get_average();
   Usonic = (lUsonic + rUsonic) * 0.5;
-  rTofRead = rTofFilter.add(analogRead(R_tof)); rTof = rTofFilter.get();
+  rTofFilter.add(analogRead(R_tof)); rTof = rTofFilter.get_average();
 }
 
 void align_control() {
