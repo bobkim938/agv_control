@@ -287,8 +287,8 @@ void send_485() { // This function to send out 485 com to the AGV. Don't touch t
 }
 
 void read_sensor() { // This function to read sensor data and average them
-  lUsonicFilter.add(ADS.readADC(1)); lUsonic = (lUsonicFilter.get_average() - 1021.2) / 55.596;
-  rUsonicFilter.add(ADS.readADC(3)); rUsonic = (rUsonicFilter.get_average() - 1041.4) / 55.811;
+  lUsonicFilter.add(ADS.readADC(1)); lUsonic = (lUsonicFilter.get_average() + 1021.2) / 55.596;
+  rUsonicFilter.add(ADS.readADC(3)); rUsonic = (rUsonicFilter.get_average() + 1041.4) / 55.811;
   lTof_back_Filter.add(ADS.readADC(0)); lTof_back = lTof_back_Filter.get_average(); // back LTOF
   lTof_front_Filter.add(ADS.readADC(2)); lTof_front = lTof_front_Filter.get_average(); // front LTOF
   CeilTofFilter.add(analogRead(Ceit_tof)); CeilTof = CeilTofFilter.get_average();
