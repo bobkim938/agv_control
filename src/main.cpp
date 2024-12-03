@@ -6,8 +6,7 @@
 
 enum SPEED {SLOW, FAST};
 
-#define R_usonic A0 // 1st
-#define L_usonic A1 // 2nd
+#define Ceit_tof A0 // 1st
 #define R_tof A3
 
 #define PS2_DAT        13    
@@ -101,9 +100,9 @@ const byte slow[11]   = {0x01, 0x06, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0
 const byte fast[11]   = {0x01, 0x06, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x96, 0x8B};
 const byte left[11]   = {0x01, 0x06, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x76, 0x8A};
 const byte right[11]  = {0x01, 0x06, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0xFE, 0x8A};
-const uint8_t magicLabAlign = 1; 
+const float magicLabAlign = 0.5; 
 const uint8_t magicLabStride = 5; // equivalent to 1 mm
-const uint8_t magicLabAdjust = 2;
+const float magicLabAdjust = 0.5;
 
 bool align_flag, stride_flag, adjust_flag, printTOF_flag, printSONIC_flag, strideSpeed_flag, print_state_flag, false_alarm = false;
 bool onStart_speed = true; // reduce speed when starting
@@ -117,9 +116,10 @@ float lUsonic, rUsonic, Usonic, UsonicDiff, rTof;
 float lTof_back, strideTarget, prev_ltof;
 float lTof_front;
 float lTofDiff;
+float crawling_range;
 
-moving_average lUsonicFilter(128);
-moving_average rUsonicFilter(128);
+moving_average lUsonicFilter(16);
+moving_average rUsonicFilter(16);
 moving_average lTof_back_Filter(4);
 moving_average rTofFilter(4);
 moving_average lTof_front_Filter(4);
@@ -287,11 +287,13 @@ void send_485() { // This function to send out 485 com to the AGV. Don't touch t
 }
 
 void read_sensor() { // This function to read sensor data and average them
-  lUsonicFilter.add(analogRead(L_usonic)); lUsonic = lUsonicFilter.get_average();
-  rUsonicFilter.add(analogRead(R_usonic)); rUsonic = rUsonicFilter.get_average();
+  lUsonicFilter.add(ADS.readADC(1)); lUsonic = (lUsonicFilter.get_average() - 1021.2) / 55.596;
+  rUsonicFilter.add(ADS.readADC(3)); rUsonic = (rUsonicFilter.get_average() - 1041.4) / 55.811;
   lTof_back_Filter.add(ADS.readADC(0)); lTof_back = lTof_back_Filter.get_average(); // back LTOF
   lTof_front_Filter.add(ADS.readADC(2)); lTof_front = lTof_front_Filter.get_average(); // front LTOF
-  CeilTofFilter.add(ADS.readADC(1)); CeilTof = CeilTofFilter.get_average();
+  CeilTofFilter.add(analogRead(Ceit_tof)); CeilTof = CeilTofFilter.get_average();
+  // Serial.print("Left: "); Serial.println(lUsonic); // temporary
+  // Serial.print("Right: "); Serial.println(rUsonic);
   Usonic = (lUsonic + rUsonic) * 0.5;
   rTofFilter.add(analogRead(R_tof)); rTof = rTofFilter.get_average();
 }
@@ -404,10 +406,10 @@ void adjust_control() {
     if (abs(Usonic - adjustTarget) > magicLabAdjust) {
       if (Usonic > adjustTarget) { // shall move forward
         // if(digitalRead(FLidarZone1) < 1) {
-          if(lUsonic > 270 && rUsonic > 270) { // only move when both of them is higher than 270 ADC (avoid vision head crashing)
-            if (UsonicDiff < 50) { // crawling speed
+          if(lUsonic > 100 && rUsonic > 100) { // only move when both of them is higher than 100 mm (avoid vision head crashing)
+            if (UsonicDiff < 30) { // crawling speed
               if(adjusting_cnt == 0) {
-                if (adjust_i<2) { adjust_i++; cmd_state = 0;}
+                if (adjust_i<1) { adjust_i++; cmd_state = 0;}
                 else { adjust_i = 0; cmd_state = 1; }
               }
               else {                                      
@@ -433,9 +435,9 @@ void adjust_control() {
       else if (Usonic < adjustTarget) { // shall move backward
         // if(digitalRead(BLidarZone1) < 1) {
           if(Usonic < 1022) {
-            if(UsonicDiff < 50) { // crawling speed
+            if(UsonicDiff < 30) { // crawling speed
               if(adjusting_cnt == 0) {
-                if (adjust_i<2) { adjust_i++; cmd_state = 0;}
+                if (adjust_i<1) { adjust_i++; cmd_state = 0;}
                 else { adjust_i = 0; cmd_state = 2; }
               }
               else {
@@ -526,7 +528,7 @@ void process_terminal(int incomingByte, int32_t target) { // This function to pr
   }
   else if ((incomingByte == 67) || (incomingByte == 99)) { // C or c (stride)
     if(target <= 24037 && target >= 533) { // receiving range of 100 - 4500 mm only (distance = 0.1872*ADC + 0.2184) for lTof_front
-      strideTarget = target;
+      strideTarget = (float)target;
       stride_flag = true;
       Serial.print('c');
       Serial.print(target);
@@ -536,7 +538,8 @@ void process_terminal(int incomingByte, int32_t target) { // This function to pr
   }
   else if ((incomingByte == 78) || (incomingByte == 110)) { // N or n (adjust)
     if(target <= 1002 && target >= 179) { // receiving range of 100 - 490 mm only
-      adjustTarget = target;
+      adjustTarget = (float)target;
+      // crawling_range = abs(adjustTarget - Usonic) * 0.5;
       adjust_flag = true; 
       Serial.print('n');
       Serial.print(target);
