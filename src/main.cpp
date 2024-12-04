@@ -116,7 +116,6 @@ float lUsonic, rUsonic, Usonic, UsonicDiff, rTof;
 float lTof_back, strideTarget, prev_ltof;
 float lTof_front;
 float lTofDiff;
-float crawling_range;
 
 moving_average lUsonicFilter(16);
 moving_average rUsonicFilter(16);
@@ -537,9 +536,8 @@ void process_terminal(int incomingByte, int32_t target) { // This function to pr
     else stride_flag = false;
   }
   else if ((incomingByte == 78) || (incomingByte == 110)) { // N or n (adjust)
-    if(target <= 1002 && target >= 179) { // receiving range of 100 - 490 mm only
+    if(target <= 450 && target >= 100) { // receiving range of 100 - 450 mm only
       adjustTarget = (float)target;
-      // crawling_range = abs(adjustTarget - Usonic) * 0.5;
       adjust_flag = true; 
       Serial.print('n');
       Serial.print(target);
