@@ -508,7 +508,7 @@ void process_controller() { // function to process the incoming terminal command
   if(ps2x.Button(PSB_START)) { // start (idle)
     cmd_state = 0; 
     align_flag = false;
-    stride_flag = false;mainly for semi-auto
+    stride_flag = false;
     adjust_flag = false;
     strideSpeed_flag = false;
     false_alarm = false;
