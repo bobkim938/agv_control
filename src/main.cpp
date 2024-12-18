@@ -167,7 +167,7 @@ void setup() { // put your setup code here, to run once:
 void loop() { // put your main code here, to run repeatedly:
   read_sensor();
   if ((abs(prev_ltof - lTof_front) > 200) && stride_flag) {
-    false_alarm = true;
+    false_alarm = true; // sudden target changed, so stopping motion (most likely due to someone passing by TOF)
   }
   prev_ltof = lTof_front;
   if (estopFlag || false_alarm) {
@@ -186,7 +186,6 @@ void loop() { // put your main code here, to run repeatedly:
   if (align_flag) align_control(); 
   else if (stride_flag) stride_control();
   else if (adjust_flag) {
-    // set_speed(SLOW);
     adjust_control();
   }
   else {
@@ -227,7 +226,7 @@ void loop() { // put your main code here, to run repeatedly:
     int incomingByte = Serial.read();
     if (incomingByte == 'C' || incomingByte == 'c' || incomingByte == 'N' || incomingByte == 'n') {
       int32_t target = Serial.parseInt();
-      if(target - lTof_front - 129 >= (int32_t)(rTof * 26559.0/1019.0)) { // width of the AGV: 670 mm
+      if(target - lTof_front - 129 >= (int32_t)(rTof * 26559.0/1019.0) && (incomingByte == 'C' || incomingByte == 'c')) { // width of the AGV: 670 mm
         target = lTof_front + (int32_t)((rTof - 18) * 26559.0/1019.0);
       }
       process_terminal(incomingByte, target);
@@ -291,21 +290,17 @@ void read_sensor() { // This function to read sensor data and average them
   lTof_back_Filter.add(ADS.readADC(0)); lTof_back = lTof_back_Filter.get_average(); // back LTOF
   lTof_front_Filter.add(ADS.readADC(2)); lTof_front = lTof_front_Filter.get_average(); // front LTOF
   CeilTofFilter.add(analogRead(Ceit_tof)); CeilTof = CeilTofFilter.get_average();
-  // Serial.print("Left: "); Serial.println(lUsonic); // temporary
-  // Serial.print("Right: "); Serial.println(rUsonic);
   Usonic = (lUsonic + rUsonic) * 0.5;
   rTofFilter.add(analogRead(R_tof)); rTof = rTofFilter.get_average();
 }
 
-void align_control() {
+void align_control() { // to align the AGV with respect to the Glass
   UsonicDiff = lUsonic - rUsonic;
-  // if(UsonicDiff <= 32) {
     if (align_i< 2) { // only enter the align_control after the count is reached
       align_i++; 
       cmd_state = 0; 
     }
     else { 
-      // if(digitalRead(FLidarZone1) < 1 && digitalRead(BLidarZone1) < 1 && digitalRead(FLidarZone2) < 1 && digitalRead(BLidarZone2) < 1) {
         align_i = 0; 
         if (UsonicDiff > (magicLabAlign*1.0)) {
           cmd_state = 4; // should rotate cw
@@ -315,17 +310,11 @@ void align_control() {
           cmd_state = 3; // should rotate ccw
           // Serial.println("CCW");
         }
-        else { cmd_state = 0; align_flag = false; } // should not move
-      // }
-      // else {
-      //   cmd_state = 0;
-      // }
+        else { 
+          cmd_state = 0; 
+          align_flag = false; 
+        } // should not move
     }
-  // }
-  // else {
-  //   cmd_state = 0;
-  //   align_flag = false;
-  // }
 }
 
 void stride_control() { // stride control based on FRONT LTOF (lTof_front)
@@ -465,7 +454,7 @@ void adjust_control() {
     }
 }
 
-void process_terminal(int incomingByte, int32_t target) { // This function to process the incoming terminal command
+void process_terminal(int incomingByte, int32_t target) { // function to process the incoming terminal command from the PC (mainly for semi-auto motion)
   if (incomingByte == 32) { // space (idle)
     cmd_state = 0; 
     align_flag = false;
@@ -474,53 +463,6 @@ void process_terminal(int incomingByte, int32_t target) { // This function to pr
     strideSpeed_flag = false;
     false_alarm = false;
     Serial.println("Reset");
-  }
-  else if ((incomingByte == 87) || (incomingByte == 119)) { // W or w (forward)
-    // if(lUsonic > 180 && rUsonic > 180)  // if both sensors are not blocked (100 mm == 180 ADC)
-    if(digitalRead(FLidarZone1) < 1) {  // if front sensor is not blocked
-      cmd_state = 1;
-    }
-    else cmd_state = 0;
-    } 
-  else if ((incomingByte == 83) || (incomingByte == 115)) { // S or s (backward)
-    if(digitalRead(BLidarZone1) < 1) {  // if front sensor is not blocked
-      cmd_state = 2;
-    }
-    else cmd_state = 0;
-  } 
-  else if ((incomingByte == 81) || (incomingByte == 113)) { // Q or q (ccw)
-    // if(lTof_back > 3448 && rTof > 20 && lUsonic > 390 && rUsonic > 390) // L, RTOF > 650 mm , L, RUSONIC > 200 mm
-    // if(digitalRead(FLidarZone2) < 1 && digitalRead(BLidarZone2) < 1) { 
-      cmd_state = 3;
-    // }
-    // else cmd_state = 0;
-  } 
-  else if ((incomingByte == 69) || (incomingByte == 101)) { // E or e (cw)
-    // if(lTof_back > 3448 && rTof > 20 && lUsonic > 390 && rUsonic > 390) // L, RTOF > 650 mm , L, RUSONIC > 200 mm
-    // if(digitalRead(FLidarZone2) < 1 && digitalRead(BLidarZone2) < 1) {
-      cmd_state = 4; 
-    // }
-    // else cmd_state = 0;
-  } 
-  else if (incomingByte == 45) {
-    set_speed(SLOW); // - (slower)
-  }
-  else if (incomingByte == 61) {
-    set_speed(FAST); // = (faster)
-  }
-  else if ((incomingByte == 65) || (incomingByte == 97)) { // A or a (left)
-    // if(lTof_back > 521) // if left sensor is not blocked (100 mm == 521 ADC)
-    // if(digitalRead(BLidarZone2) < 1) {
-      cmd_state = 7; // A or a (left)
-    // }
-    // else cmd_state = 0;
-  }
-  else if ((incomingByte == 68) || (incomingByte == 100)) { // D or d (right)
-    // if(rTof > 20) // if right sensor is not blocked (100 mm == 20 ADC)
-    if(digitalRead(FLidarZone2) < 1) {
-      cmd_state = 8;
-    }
-    else cmd_state = 0;
   }
   else if ((incomingByte == 77) || (incomingByte == 109)) { // M or m (align)
     align_flag = true; 
@@ -562,11 +504,11 @@ void process_terminal(int incomingByte, int32_t target) { // This function to pr
   }
 }
 
-void process_controller() {     // Function to receive PS2 input
-  if(ps2x.Button(PSB_START)) {         // start (idle)
+void process_controller() { // function to process the incoming terminal command from the PS2 (for manual motion)
+  if(ps2x.Button(PSB_START)) { // start (idle)
     cmd_state = 0; 
     align_flag = false;
-    stride_flag = false;
+    stride_flag = false;mainly for semi-auto
     adjust_flag = false;
     strideSpeed_flag = false;
     false_alarm = false;
