@@ -116,6 +116,9 @@ float lUsonic, rUsonic, Usonic, UsonicDiff, rTof;
 float lTof_back, strideTarget, prev_ltof;
 float lTof_front;
 float lTofDiff;
+// For Sensor Failure Judgement (Alignment)
+bool clock_wise, counter_clock_wise = false; 
+float prev_lSonic, prev_rSonic;
 
 moving_average lUsonicFilter(16);
 moving_average rUsonicFilter(16);
@@ -165,6 +168,24 @@ void setup() { // put your setup code here, to run once:
 
 
 void loop() { // put your main code here, to run repeatedly:
+  // JUDGE SENSOR FAILURE
+  if(clock_wise) {
+    if(lUsonic > prev_lSonic || rUsonic < prev_rSonic) { // Sensor Failed
+      cmd_state = 0; 
+      clock_wise = false;
+      counter_clock_wise = false;
+      align_flag = false; 
+    }
+  }
+  else if(counter_clock_wise) { // Sensor Failed
+    if(lUsonic < prev_lSonic || rUsonic > prev_rSonic) {
+      cmd_state = 0; 
+      clock_wise = false;
+      counter_clock_wise = false;
+      align_flag = false; 
+    }
+  }
+
   read_sensor();
   if ((abs(prev_ltof - lTof_front) > 200) && stride_flag) {
     false_alarm = true; // sudden target changed, so stopping motion (most likely due to someone passing by TOF)
@@ -183,7 +204,9 @@ void loop() { // put your main code here, to run repeatedly:
     onStart_speed = false;
   }
   
-  if (align_flag) align_control(); 
+  if (align_flag) {
+    align_control(); 
+  }
   else if (stride_flag) stride_control();
   else if (adjust_flag) {
     adjust_control();
@@ -296,25 +319,43 @@ void read_sensor() { // This function to read sensor data and average them
 
 void align_control() { // to align the AGV with respect to the Glass
   UsonicDiff = lUsonic - rUsonic;
-    if (align_i< 2) { // only enter the align_control after the count is reached
-      align_i++; 
-      cmd_state = 0; 
+  prev_lSonic = lUsonic;
+  prev_rSonic = rUsonic;
+  if (align_i< 2) { // only enter the align_control after the count is reached
+    align_i++; 
+    cmd_state = 0; 
+  }
+  else { 
+    align_i = 0; 
+    if (UsonicDiff > (magicLabAlign*1.0)) {
+      cmd_state = 4; // should rotate cw
+      clock_wise = true;
+      counter_clock_wise = false;
+      /*in case of CLOCKWISE MOTION
+      On every step:
+        current lUsonic < prev_lSonic, current rUsonic > prev_rSonic
+      Otherwise:
+        considered as sensor Failure
+      */
+    } 
+    else if (UsonicDiff < (magicLabAlign*-1.0)) {
+      cmd_state = 3; // should rotate ccw
+      counter_clock_wise = true;
+      clock_wise = false;
+      /*in case of COUNTER CLOCKWISE MOTION
+      On every step:
+        current lUsonic > prev_lSonic, current rUsonic < prev_rSonic
+      Otherwise:
+        considered as sensor Failure
+      */
     }
     else { 
-        align_i = 0; 
-        if (UsonicDiff > (magicLabAlign*1.0)) {
-          cmd_state = 4; // should rotate cw
-          // Serial.println("CW");
-        } 
-        else if (UsonicDiff < (magicLabAlign*-1.0)) {
-          cmd_state = 3; // should rotate ccw
-          // Serial.println("CCW");
-        }
-        else { 
-          cmd_state = 0; 
-          align_flag = false; 
-        } // should not move
-    }
+      cmd_state = 0; 
+      clock_wise = false;
+      counter_clock_wise = false;
+      align_flag = false; 
+    } // should not move
+  }
 }
 
 void stride_control() { // stride control based on FRONT LTOF (lTof_front)
